@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".BbsMooveApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.BbsMoove"
+        android:supportsRtl="true">
+
+        <!--
+            Pas de android:screenOrientation : le HUD doit suivre la rotation
+            du téléphone (portrait = split haut/bas, paysage = split gauche/droite),
+            géré dans HudActivity via la config du device.
+        -->
+        <activity
+            android:name=".ui.HudActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.LocationTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <service
+            android:name=".service.NotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

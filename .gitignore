@@ -1,0 +1,18 @@
+# Build
+/app/build/
+/build/
+.gradle/
+
+# Local config (jamais commit — chemin SDK propre à chaque poste)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Logs
+*.log
+
+# NB : app/keystore/debug.keystore est volontairement PAS ignoré --
+# c'est le keystore fixe partagé entre tous les builds CI (cf. build.gradle.kts).
