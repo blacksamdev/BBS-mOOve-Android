@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Anneau du cadran -->
+    <path
+        android:pathData="M24,54 A30,30 0 1 1 84,54 A30,30 0 1 1 24,54 Z"
+        android:strokeColor="#C9A227"
+        android:strokeWidth="5"
+        android:fillColor="#00000000" />
+
+    <!-- Aiguille pointant vers le haut-droite (vitesse élevée) -->
+    <path
+        android:pathData="M54,54 L72,32"
+        android:strokeColor="#C9A227"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Pivot central -->
+    <path
+        android:pathData="M54,54 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0"
+        android:fillColor="#C9A227" />
+
+</vector>
