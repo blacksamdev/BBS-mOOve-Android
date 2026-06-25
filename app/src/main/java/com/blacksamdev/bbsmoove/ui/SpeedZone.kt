@@ -44,7 +44,18 @@ fun SpeedZone(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        val digitHeight = (minOf(maxWidth, maxHeight) * 0.32f)
+        // On exploite toute la place dispo. Le facteur largeur dépend du
+        // nombre de chiffres (1, 2 ou 3 : "9", "90", "180") pour que même
+        // un "180" tienne en largeur sans déborder.
+        val digitCount = speedKmh.coerceAtLeast(0).toString().length
+        // Ratio d'un chiffre 7-seg : largeur ≈ 0.52 × hauteur (44/84).
+        // Largeur totale ≈ digitCount × 0.52 × h + espacements.
+        val maxByHeight = maxHeight * 0.62f
+        val maxByWidth = (maxWidth * 0.88f) / (digitCount * 0.60f)
+        val digitHeight = minOf(maxByHeight, maxByWidth)
+
+        // Badge limite ≈ 3/4 de la hauteur d'un chiffre
+        val badgeSize = digitHeight * 0.75f
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             SevenSegmentNumber(
@@ -56,18 +67,19 @@ fun SpeedZone(
                 text = "km / h",
                 color = speedState.color,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 letterSpacing = 4.sp,
                 modifier = Modifier.padding(top = 10.dp),
             )
         }
 
-        // Badge limite : décentré bas-droite, ton atténué (pas blanc pur)
+        // Badge limite : décentré bas-droite, ton atténué (pas blanc pur),
+        // taille proportionnelle aux chiffres de vitesse.
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 32.dp, bottom = 24.dp)
-                .size(27.dp)
+                .padding(end = 24.dp, bottom = 20.dp)
+                .size(badgeSize)
                 .shadow(2.dp, CircleShape)
                 .background(BgPanel, CircleShape)
                 .border(2.dp, BoneDim, CircleShape),
@@ -77,7 +89,7 @@ fun SpeedZone(
                 text = limitKmh.toString(),
                 color = BoneDim,
                 fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
+                fontSize = (badgeSize.value * 0.34f).sp,
             )
         }
     }
