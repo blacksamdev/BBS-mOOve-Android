@@ -1,0 +1,47 @@
+name: Build department databases
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Une fois par mois (le 1er à 3h du matin UTC) -- OSM bouge lentement
+    # pour les limites de vitesse, pas besoin de plus fréquent.
+    - cron: "0 3 1 * *"
+
+permissions:
+  contents: write   # nécessaire pour créer/mettre à jour la Release
+
+jobs:
+  build-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer pyosmium
+        run: pip install "osmium>=4.0,<5.0"
+
+      - name: Construire les .db départementaux
+        env:
+          OUTPUT_DIR: dist
+        run: python3 scripts/build_all_departments.py
+
+      - name: Lister les .db produits
+        run: ls -la dist/*.db
+
+      - name: Publier en Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: osm-data-latest
+          name: "Données OSM départementales (dernière build)"
+          body: |
+            Bases SQLite légères (routes + maxspeed + junction) générées
+            automatiquement depuis les extraits Geofabrik.
+            Téléchargées à la demande par l'app BBS mOOve.
+          files: dist/*.db
+          make_latest: true
