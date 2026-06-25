@@ -26,8 +26,19 @@ android {
         applicationId = "com.blacksamdev.bbsmoove"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+
+        // versionCode auto-incrémenté en CI : on prend le numéro de run
+        // GitHub Actions (GITHUB_RUN_NUMBER), qui augmente à chaque build.
+        // En local (variable absente) on retombe sur 1 pour les builds manuels.
+        // Sans ça, le versionCode resterait figé et Android pourrait refuser
+        // d'installer une nouvelle nightly par-dessus l'ancienne.
+        val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionCode = runNumber
+        versionName = if (System.getenv("GITHUB_RUN_NUMBER") != null) {
+            "0.1.0-build.$runNumber"
+        } else {
+            "0.1.0-dev"
+        }
 
         // Chaquopy : on cible arm64 + armeabi, les profils courants des téléphones Android
         ndk {
@@ -58,6 +69,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
