@@ -29,16 +29,60 @@ def geofabrik_url(region, slug):
 
 def download(url, dest):
     print(f"  téléchargement : {url}")
-    req = urllib.request.Request(url, headers={"User-Agent": "BBS-mOOve-build/1.0"})
-    with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
+    try:
+        _download_urllib(url, dest)
+    except Exception as e:
+        print(f"  urllib a échoué ({e}), nouvelle tentative avec curl…")
+        _download_curl(url, dest)
+
+    size = os.path.getsize(dest)
+    if size == 0:
+        raise RuntimeError("fichier téléchargé vide (0 octet)")
+    print(f"  téléchargé : {size / 1e6:.1f} Mo")
+
+
+def _download_urllib(url, dest):
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; BBS-mOOve-build/1.0; +https://github.com/blacksamdev/BBS-mOOve-Android)",
+            "Accept": "*/*",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        status = getattr(resp, "status", None) or resp.getcode()
+        if status != 200:
+            raise RuntimeError(f"HTTP {status} (attendu 200)")
+        expected = resp.headers.get("Content-Length")
+        expected = int(expected) if expected else None
+
         total = 0
-        while True:
-            chunk = resp.read(1 << 20)
-            if not chunk:
-                break
-            f.write(chunk)
-            total += len(chunk)
-    print(f"  téléchargé : {total / 1e6:.1f} Mo")
+        with open(dest, "wb") as f:
+            while True:
+                chunk = resp.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk)
+                total += len(chunk)
+
+    if total == 0:
+        raise RuntimeError("réponse vide")
+    if expected is not None and total != expected:
+        raise RuntimeError(f"taille incomplète : {total}/{expected}")
+
+
+def _download_curl(url, dest):
+    # curl est toujours présent sur les runners GitHub ; -L suit les
+    # redirections, -f échoue proprement sur erreur HTTP, --retry gère
+    # les coupures réseau transitoires.
+    result = subprocess.run(
+        ["curl", "-fSL", "--retry", "3", "--retry-delay", "5",
+         "-A", "Mozilla/5.0 (compatible; BBS-mOOve-build/1.0)",
+         "-o", str(dest), url],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"curl a échoué (code {result.returncode}): {result.stderr.strip()}")
 
 
 def main():
