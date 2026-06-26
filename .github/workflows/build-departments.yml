@@ -31,17 +31,18 @@ jobs:
           OUTPUT_DIR: dist
         run: python3 scripts/build_all_departments.py
 
-      - name: Lister les .db produits
-        run: ls -la dist/*.db
+      - name: Lister les .db.gz produits
+        run: ls -la dist/*.db.gz
 
       - name: Publier en Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: osm-data-latest
-          name: "Données OSM départementales (dernière build)"
+          name: "Données OSM régionales (dernière build)"
           body: |
-            Bases SQLite légères (routes + maxspeed + junction) générées
-            automatiquement depuis les extraits Geofabrik.
+            Bases SQLite légères (routes + maxspeed + junction), compressées
+            en gzip, générées automatiquement depuis les extraits Geofabrik
+            (découpage par ancienne région française).
             Téléchargées à la demande par l'app BBS mOOve.
-          files: dist/*.db
+          files: dist/*.db.gz
           make_latest: true

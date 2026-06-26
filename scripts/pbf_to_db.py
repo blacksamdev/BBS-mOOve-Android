@@ -17,7 +17,10 @@ Usage :
     python3 pbf_to_db.py saone-et-loire-latest.osm.pbf 71.db
 """
 
+import gzip
 import json
+import os
+import shutil
 import sqlite3
 import sys
 
@@ -34,7 +37,9 @@ DRIVABLE_HIGHWAYS = {
     "unclassified",
     "residential",
     "living_street",
-    "service",
+    # "service" retiré : voies de parking / allées privées, sans limite
+    # réglementaire pertinente pour un HUD de vitesse, et très nombreuses
+    # (gros contributeur au poids de la base pour zéro intérêt).
 }
 
 
@@ -77,11 +82,14 @@ class RoadHandler:
 
         # Géométrie : on a besoin des coordonnées de chaque node de la way.
         # FileProcessor avec .with_locations() remplit w.nodes[i].location.
+        # 5 décimales = ~1 m de résolution, largement suffisant pour savoir
+        # sur quel tronçon on est (6 décimales = 10 cm = précision inutile
+        # ici, qui ne ferait qu'alourdir la base).
         points = []
         for n in w.nodes:
             if not n.location.valid():
                 continue
-            points.append([round(n.location.lat, 6), round(n.location.lon, 6)])
+            points.append([round(n.location.lat, 5), round(n.location.lon, 5)])
 
         if len(points) < 2:
             self.skipped_no_geom += 1
@@ -97,7 +105,7 @@ class RoadHandler:
 
         # Heuristique agglomération : en France, residential/living_street
         # sont quasi toujours en agglo (et donc 50 par défaut si pas de tag).
-        is_agglo = 1 if highway in ("residential", "living_street", "service") else 0
+        is_agglo = 1 if highway in ("residential", "living_street") else 0
 
         self.rows.append(
             (
@@ -150,11 +158,28 @@ def convert(input_path, output_path):
         "CREATE INDEX idx_bbox ON road_segments(min_lat, max_lat, min_lon, max_lon)"
     )
     conn.commit()
+    # VACUUM : récupère l'espace libre et compacte le fichier SQLite
+    # (ne supprime aucune donnée, réorganise juste le stockage).
+    conn.execute("VACUUM")
+    conn.commit()
     conn.close()
+
+    raw_size = os.path.getsize(output_path)
+
+    # Compression gzip : un SQLite plein de géométrie JSON se compresse très
+    # bien. L'app téléchargera le .db.gz et le décompressera à l'arrivée ;
+    # la base finale est identique au bit près, on n'allège que le transfert
+    # et le stockage du téléchargement.
+    gz_path = str(output_path) + ".gz"
+    with open(output_path, "rb") as f_in, gzip.open(gz_path, "wb", compresslevel=9) as f_out:
+        shutil.copyfileobj(f_in, f_out)
+    gz_size = os.path.getsize(gz_path)
 
     print(f"OK -> {output_path}")
     print(f"   segments écrits : {len(handler.rows)}")
     print(f"   ignorés (géométrie insuffisante) : {handler.skipped_no_geom}")
+    print(f"   taille .db    : {raw_size / 1e6:.1f} Mo")
+    print(f"   taille .db.gz : {gz_size / 1e6:.1f} Mo ({100 * gz_size / raw_size:.0f}% de l'original)")
     return len(handler.rows)
 
 

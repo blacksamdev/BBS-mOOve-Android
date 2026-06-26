@@ -159,12 +159,22 @@ def main():
             summary.append((code, "convert_failed", 0))
             continue
 
-        # On supprime le .pbf intermédiaire (volumineux), on ne garde que le .db
+        # On supprime le .pbf intermédiaire (volumineux), on ne garde que le
+        # .db.gz (compressé) pour le téléchargement par l'app.
         pbf_path.unlink(missing_ok=True)
 
-        size_mb = db_path.stat().st_size / 1e6
+        gz_path = Path(str(db_path) + ".gz")
+        if not gz_path.exists():
+            print(f"  ÉCHEC : .db.gz absent après conversion")
+            summary.append((code, "gz_missing", 0))
+            continue
+
+        # On retire le .db non compressé : seul le .gz est publié/téléchargé
+        db_path.unlink(missing_ok=True)
+
+        size_mb = gz_path.stat().st_size / 1e6
         summary.append((code, "ok", size_mb))
-        print(f"  .db final : {size_mb:.1f} Mo")
+        print(f"  .db.gz final : {size_mb:.1f} Mo")
 
     print("\n=== RÉSUMÉ ===")
     for code, status, size in summary:
