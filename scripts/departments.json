@@ -1,7 +1,6 @@
 {
-  "71": {
-    "name": "Saône-et-Loire",
-    "region": "bourgogne-franche-comte",
-    "slug": "saone-et-loire"
+  "bourgogne": {
+    "name": "Bourgogne",
+    "path": "bourgogne"
   }
 }

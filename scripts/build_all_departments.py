@@ -23,33 +23,65 @@ SCRIPT_DIR = Path(__file__).parent
 OUT_DIR = Path(os.environ.get("OUTPUT_DIR", "dist"))
 
 
-def geofabrik_url(region, slug):
-    return f"{GEOFABRIK_BASE}/{region}/{slug}-latest.osm.pbf"
+def geofabrik_url(path):
+    # path est le chemin Geofabrik sous .../europe/france/, ex "bourgogne"
+    # (Geofabrik découpe la France par ANCIENNE région, pas par département).
+    return f"{GEOFABRIK_BASE}/{path}-latest.osm.pbf"
 
 
 def download(url, dest):
     print(f"  téléchargement : {url}")
 
-    # Tentative 1 : urllib. On considère que ça a marché seulement si le
-    # fichier est non vide -- Geofabrik peut renvoyer un corps vide sans
-    # lever d'exception (cas observé en CI), d'où la double vérification.
-    ok = False
-    try:
-        _download_urllib(url, dest)
-        ok = os.path.exists(dest) and os.path.getsize(dest) > 0
-        if not ok:
-            print("  urllib a produit un fichier vide, bascule sur curl…")
-    except Exception as e:
-        print(f"  urllib a échoué ({e}), bascule sur curl…")
+    # curl en premier : il gère correctement les redirections de Geofabrik
+    # (qui renvoie vers un miroir), là où urllib se faisait piéger et
+    # écrivait une petite page HTML/redirection au lieu du vrai .pbf.
+    last_err = None
+    for attempt, method in enumerate((_download_curl, _download_urllib), start=1):
+        try:
+            method(url, dest)
+            _validate_pbf(dest)
+            size = os.path.getsize(dest)
+            print(f"  téléchargé : {size / 1e6:.1f} Mo (via {method.__name__})")
+            return
+        except Exception as e:
+            last_err = e
+            print(f"  tentative {attempt} ({method.__name__}) échouée : {e}")
+            if os.path.exists(dest):
+                os.remove(dest)
 
-    # Tentative 2 : curl (suit redirections, retries, gère mieux Geofabrik)
-    if not ok:
-        _download_curl(url, dest)
+    raise RuntimeError(f"téléchargement impossible après curl ET urllib : {last_err}")
 
-    size = os.path.getsize(dest) if os.path.exists(dest) else 0
-    if size == 0:
-        raise RuntimeError("fichier téléchargé vide (0 octet) après urllib ET curl")
-    print(f"  téléchargé : {size / 1e6:.1f} Mo")
+
+def _validate_pbf(path):
+    """
+    Vérifie que le fichier est bien un OSM PBF, pas une page d'erreur HTML
+    ou une redirection. Un .osm.pbf valide :
+      - pèse au moins quelques centaines de Ko (un département complet)
+      - commence par un BlobHeader (octets 0x00 0x00 0x00 ... pas '<' de HTML)
+    """
+    if not os.path.exists(path):
+        raise RuntimeError("fichier absent après téléchargement")
+
+    size = os.path.getsize(path)
+    if size < 100_000:  # un département fait des dizaines de Mo, jamais <100Ko
+        # Lire le début pour donner un message utile (souvent du HTML d'erreur)
+        with open(path, "rb") as f:
+            head = f.read(200)
+        snippet = head.decode("utf-8", errors="replace").strip()[:160]
+        raise RuntimeError(
+            f"fichier trop petit ({size} octets), probablement une erreur. "
+            f"Début : {snippet!r}"
+        )
+
+    # Un PBF commence par 4 octets de taille de BlobHeader (big-endian),
+    # suivis du type "OSMHeader". Le tout premier octet n'est jamais '<'
+    # (qui signalerait du HTML).
+    with open(path, "rb") as f:
+        head = f.read(16)
+    if head[:1] == b"<":
+        raise RuntimeError("le fichier reçu est du HTML, pas un PBF")
+    if b"OSMHeader" not in head and head[0:4] == b"\x00\x00\x00\x00":
+        raise RuntimeError("en-tête PBF invalide")
 
 
 def _download_urllib(url, dest):
@@ -64,9 +96,6 @@ def _download_urllib(url, dest):
         status = getattr(resp, "status", None) or resp.getcode()
         if status != 200:
             raise RuntimeError(f"HTTP {status} (attendu 200)")
-        expected = resp.headers.get("Content-Length")
-        expected = int(expected) if expected else None
-
         total = 0
         with open(dest, "wb") as f:
             while True:
@@ -75,11 +104,8 @@ def _download_urllib(url, dest):
                     break
                 f.write(chunk)
                 total += len(chunk)
-
     if total == 0:
         raise RuntimeError("réponse vide")
-    if expected is not None and total != expected:
-        raise RuntimeError(f"taille incomplète : {total}/{expected}")
 
 
 def _download_curl(url, dest):
@@ -111,12 +137,12 @@ def main():
 
     summary = []
     for code, info in departments.items():
-        print(f"\n=== Département {code} ({info['name']}) ===")
+        print(f"\n=== Extrait {code} ({info['name']}) ===")
         pbf_path = OUT_DIR / f"{code}.osm.pbf"
         db_path = OUT_DIR / f"{code}.db"
 
         try:
-            download(geofabrik_url(info["region"], info["slug"]), pbf_path)
+            download(geofabrik_url(info["path"]), pbf_path)
         except Exception as e:
             print(f"  ÉCHEC téléchargement : {e}")
             summary.append((code, "download_failed", 0))
