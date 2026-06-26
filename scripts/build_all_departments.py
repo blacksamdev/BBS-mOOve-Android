@@ -29,15 +29,26 @@ def geofabrik_url(region, slug):
 
 def download(url, dest):
     print(f"  téléchargement : {url}")
+
+    # Tentative 1 : urllib. On considère que ça a marché seulement si le
+    # fichier est non vide -- Geofabrik peut renvoyer un corps vide sans
+    # lever d'exception (cas observé en CI), d'où la double vérification.
+    ok = False
     try:
         _download_urllib(url, dest)
+        ok = os.path.exists(dest) and os.path.getsize(dest) > 0
+        if not ok:
+            print("  urllib a produit un fichier vide, bascule sur curl…")
     except Exception as e:
-        print(f"  urllib a échoué ({e}), nouvelle tentative avec curl…")
+        print(f"  urllib a échoué ({e}), bascule sur curl…")
+
+    # Tentative 2 : curl (suit redirections, retries, gère mieux Geofabrik)
+    if not ok:
         _download_curl(url, dest)
 
-    size = os.path.getsize(dest)
+    size = os.path.getsize(dest) if os.path.exists(dest) else 0
     if size == 0:
-        raise RuntimeError("fichier téléchargé vide (0 octet)")
+        raise RuntimeError("fichier téléchargé vide (0 octet) après urllib ET curl")
     print(f"  téléchargé : {size / 1e6:.1f} Mo")
 
 
@@ -82,6 +93,15 @@ def _download_curl(url, dest):
         capture_output=True, text=True,
     )
     if result.returncode != 0:
+        # Diagnostic : on refait une requête en mode entêtes seules pour
+        # voir ce que le serveur répond vraiment (code, redirection, etc.)
+        print("  --- diagnostic curl (entêtes) ---")
+        diag = subprocess.run(
+            ["curl", "-sIL", "-A", "Mozilla/5.0 (compatible; BBS-mOOve-build/1.0)", url],
+            capture_output=True, text=True,
+        )
+        print(diag.stdout[:2000] or "(aucune réponse)")
+        print("  --- fin diagnostic ---")
         raise RuntimeError(f"curl a échoué (code {result.returncode}): {result.stderr.strip()}")
 
 
