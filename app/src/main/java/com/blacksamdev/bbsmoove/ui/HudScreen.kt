@@ -1,10 +1,13 @@
 package com.blacksamdev.bbsmoove.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksamdev.bbsmoove.ui.theme.BgDeep
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
+import com.blacksamdev.bbsmoove.ui.theme.Gold
+import com.blacksamdev.bbsmoove.ui.theme.GoldDim
+import com.blacksamdev.bbsmoove.ui.theme.StateRed
 import android.content.res.Configuration
 
 /**
@@ -30,6 +36,7 @@ import android.content.res.Configuration
 @Composable
 fun HudScreen(viewModel: HudViewModel) {
     val uiState by viewModel.uiState.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isDucking = uiState.dangerInfo?.shouldAlert == true && uiState.nowPlaying != null
 
@@ -86,6 +93,63 @@ fun HudScreen(viewModel: HudViewModel) {
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 8.dp, bottom = 6.dp),
+            )
+
+            // Bouton "Télécharger ma région" + progression (coin haut-droite).
+            RegionDownloadControl(
+                state = downloadState,
+                onDownload = { viewModel.downloadCurrentRegion() },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RegionDownloadControl(
+    state: com.blacksamdev.bbsmoove.data.RegionDownloadManager.State,
+    onDownload: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (state) {
+        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Ready -> {
+            // Carte prête : on n'affiche rien (le bouton a disparu).
+        }
+        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Downloading -> {
+            Text(
+                text = "Téléchargement carte… ${state.percent}%",
+                color = Gold,
+                fontSize = 11.sp,
+                modifier = modifier,
+            )
+        }
+        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Decompressing -> {
+            Text(
+                text = "Décompression…",
+                color = Gold,
+                fontSize = 11.sp,
+                modifier = modifier,
+            )
+        }
+        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Error -> {
+            Text(
+                text = "Erreur : ${state.message} — toucher pour réessayer",
+                color = StateRed,
+                fontSize = 11.sp,
+                modifier = modifier.clickable { onDownload() },
+            )
+        }
+        com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Idle -> {
+            Text(
+                text = "⬇ Télécharger ma région",
+                color = Gold,
+                fontSize = 12.sp,
+                modifier = modifier
+                    .border(1.dp, GoldDim, RoundedCornerShape(4.dp))
+                    .clickable { onDownload() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
     }

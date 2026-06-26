@@ -61,5 +61,8 @@ class RoadLookupRepository(
         )
     }
 
+    /** Recharge la base après un téléchargement de région réussi. */
+    fun reload() = roadDb.reload()
+
     fun close() = roadDb.close()
 }

@@ -25,9 +25,44 @@ data class CandidateSegment(
     val isAgglomeration: Boolean,
 )
 
-class RoadDb(context: Context, dbAssetName: String = "osm_speed.db") {
+class RoadDb(private val context: Context) {
 
-    private val db: SQLiteDatabase = openFromAssets(context, dbAssetName)
+    @Volatile
+    private var db: SQLiteDatabase = openBest(context)
+
+    /**
+     * Ouvre la meilleure base disponible :
+     *  1. une base régionale téléchargée dans filesDir/regions/*.db (réelle)
+     *  2. à défaut, l'asset osm_speed.db embarqué (données de test bidon),
+     *     pour que l'app fonctionne même avant tout téléchargement.
+     */
+    private fun openBest(context: Context): SQLiteDatabase {
+        val downloaded = firstDownloadedRegion(context)
+        if (downloaded != null) {
+            return SQLiteDatabase.openDatabase(downloaded.path, null, SQLiteDatabase.OPEN_READONLY)
+        }
+        return openFromAssets(context, "osm_speed.db")
+    }
+
+    /** Première base régionale téléchargée trouvée dans filesDir/regions/. */
+    private fun firstDownloadedRegion(context: Context): File? {
+        val regionsDir = File(context.filesDir, "regions")
+        if (!regionsDir.isDirectory) return null
+        return regionsDir.listFiles { f -> f.name.endsWith(".db") }
+            ?.firstOrNull { it.length() > 10_000 }
+    }
+
+    /**
+     * Recharge la base : à appeler après qu'un téléchargement de région
+     * s'est terminé, pour basculer de l'asset bidon vers la vraie base
+     * sans redémarrer l'app.
+     */
+    @Synchronized
+    fun reload() {
+        val old = db
+        db = openBest(context)
+        if (old !== db) old.close()
+    }
 
     /** Copie la DB depuis les assets vers un emplacement accessible en lecture/écriture SQLite. */
     private fun openFromAssets(context: Context, assetName: String): SQLiteDatabase {

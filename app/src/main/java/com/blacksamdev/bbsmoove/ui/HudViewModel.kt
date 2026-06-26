@@ -42,6 +42,13 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val mediaMonitor = MediaSessionMonitor(application)
     private val audioDucking = AudioDuckingManager(application)
     private val soundPlayer = AlertSoundPlayer()
+    private val regionDownloader = com.blacksamdev.bbsmoove.data.RegionDownloadManager(application)
+
+    /** État du téléchargement de région, observé par l'UI (bouton + progression). */
+    val downloadState = regionDownloader.state
+
+    // Région fixée pour ce premier jet (détection auto à venir).
+    private val currentRegionCode = "bourgogne"
 
     private val _roadInfo = MutableStateFlow<RoadInfo?>(null)
     private val _dangerInfo = MutableStateFlow<DangerZoneInfo?>(null)
@@ -52,6 +59,21 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private var speedSum = 0L
     private var speedSamples = 0L
     private var maxSpeed = 0
+
+    /** Déclenché par le bouton "Télécharger ma région". */
+    fun downloadCurrentRegion() {
+        viewModelScope.launch {
+            regionDownloader.download(currentRegionCode)
+            // Si le téléchargement a réussi, on bascule le lookup sur la
+            // vraie base sans redémarrer l'app.
+            if (regionDownloader.isAvailable(currentRegionCode)) {
+                roadRepo.reload()
+            }
+        }
+    }
+
+    /** Vrai si la base régionale est déjà présente (pour masquer le bouton). */
+    fun isRegionAvailable(): Boolean = regionDownloader.isAvailable(currentRegionCode)
 
     val uiState: StateFlow<HudUiState> = combine(
         LocationTrackingService.gpsFix,
@@ -64,6 +86,13 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         mediaMonitor.start()
+
+        // Si la base régionale a déjà été téléchargée lors d'une session
+        // précédente, on recharge le lookup dessus et on masque le bouton.
+        regionDownloader.markReadyIfAvailable(currentRegionCode)
+        if (regionDownloader.isAvailable(currentRegionCode)) {
+            roadRepo.reload()
+        }
 
         viewModelScope.launch {
             LocationTrackingService.gpsFix.collect { fix ->
