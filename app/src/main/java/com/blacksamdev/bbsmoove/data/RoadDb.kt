@@ -32,7 +32,7 @@ class RoadDb(private val context: Context) {
 
     /**
      * Ouvre la meilleure base disponible :
-     *  1. une base régionale téléchargée dans filesDir/regions/*.db (réelle)
+     *  1. une base régionale téléchargée dans filesDir/regions/ (réelle)
      *  2. à défaut, l'asset osm_speed.db embarqué (données de test bidon),
      *     pour que l'app fonctionne même avant tout téléchargement.
      */
