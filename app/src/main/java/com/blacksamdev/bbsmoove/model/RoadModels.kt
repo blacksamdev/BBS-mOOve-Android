@@ -5,6 +5,7 @@ data class RoadInfo(
     val limitKmh: Int,
     val junction: Junction?,
     val distanceM: Double,
+    val segmentId: Long?,
 )
 
 enum class Junction {
@@ -33,6 +34,7 @@ data class GpsFix(
     val lon: Double,
     val speedKmh: Int,
     val accuracyM: Float,
+    val headingDeg: Float?,   // cap réel, null si à l'arrêt / indispo
     val timestampMs: Long,
 )
 

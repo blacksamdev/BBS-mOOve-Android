@@ -19,6 +19,7 @@ import java.io.FileOutputStream
  * Index recommandé : CREATE INDEX idx_bbox ON road_segments(min_lat, max_lat, min_lon, max_lon);
  */
 data class CandidateSegment(
+    val id: Long,
     val points: List<Pair<Double, Double>>,
     val maxspeed: Int?,
     val junction: String?,
@@ -90,7 +91,7 @@ class RoadDb(private val context: Context) {
 
         val cursor = db.query(
             "road_segments",
-            arrayOf("points_json", "maxspeed", "junction", "is_agglomeration"),
+            arrayOf("id", "points_json", "maxspeed", "junction", "is_agglomeration"),
             "max_lat >= ? AND min_lat <= ? AND max_lon >= ? AND min_lon <= ?",
             arrayOf(minLat.toString(), maxLat.toString(), minLon.toString(), maxLon.toString()),
             null, null, null,
@@ -99,13 +100,14 @@ class RoadDb(private val context: Context) {
         val results = mutableListOf<CandidateSegment>()
         cursor.use {
             while (it.moveToNext()) {
-                val pointsJson = it.getString(0)
-                val maxspeed = if (it.isNull(1)) null else it.getInt(1)
-                val junction = if (it.isNull(2)) null else it.getString(2)
-                val isAgglo = it.getInt(3) == 1
+                val id = it.getLong(0)
+                val pointsJson = it.getString(1)
+                val maxspeed = if (it.isNull(2)) null else it.getInt(2)
+                val junction = if (it.isNull(3)) null else it.getString(3)
+                val isAgglo = it.getInt(4) == 1
 
                 val points = parsePointsJson(pointsJson)
-                results.add(CandidateSegment(points, maxspeed, junction, isAgglo))
+                results.add(CandidateSegment(id, points, maxspeed, junction, isAgglo))
             }
         }
         return results

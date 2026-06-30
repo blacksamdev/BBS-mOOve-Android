@@ -60,32 +60,110 @@ def _point_to_segment_distance_m(lat, lon, lat1, lon1, lat2, lon2):
     return math.hypot(px - proj_x, py - proj_y)
 
 
-def nearest_segment(lat, lon, segments_json, max_radius_m=80.0):
-    """
-    segments_json : liste de dicts JSON, chacun avec :
-        - "points": [[lat, lon], [lat, lon], ...]  (polyligne du tronçon)
-        - "maxspeed": int ou None
-        - "junction": "roundabout" | None
-        - "is_agglomeration": bool (approx, déduit du tag OSM si dispo)
+def _segment_bearing_deg(lat1, lon1, lat2, lon2):
+    """Cap (azimut) d'un segment orienté, en degrés 0-360 (0 = nord)."""
+    lat0 = math.radians((lat1 + lat2) / 2)
+    dx = (lon2 - lon1) * math.cos(lat0)
+    dy = (lat2 - lat1)
+    ang = math.degrees(math.atan2(dx, dy))
+    return ang % 360.0
 
-    Renvoie un dict JSON (sérialisé en str, pour le pont Chaquopy) :
-        {"limit": int, "junction": str|None, "distance_m": float}
-    ou None si rien dans le rayon.
+
+def _bearing_diff(a, b):
     """
+    Écart angulaire minimal entre deux caps, en tenant compte du fait qu'une
+    route se parcourt dans les DEUX sens : un tronçon orienté à 90° "colle"
+    aussi bien à un cap de 90° que de 270°. Renvoie 0-90.
+    """
+    d = abs(a - b) % 360.0
+    if d > 180.0:
+        d = 360.0 - d
+    # Sens inverse aussi valable
+    if d > 90.0:
+        d = 180.0 - d
+    return d
+
+
+def nearest_segment(
+    lat, lon, segments_json,
+    max_radius_m=80.0,
+    heading=-1.0,            # cap GPS courant (degrés) ; <0 = indispo
+    accuracy_m=-1.0,         # précision GPS (mètres) ; <0 = indispo
+    prev_segment_id=-1,      # id du tronçon retenu juste avant ; <0 = aucun
+):
+    """
+    Map-matching léger : au lieu de prendre bêtement le tronçon le plus
+    proche (qui peut être une route parallèle/croisée), on score chaque
+    candidat en combinant :
+      - la distance perpendiculaire (plus c'est proche, mieux c'est)
+      - l'alignement du cap GPS avec l'orientation du tronçon (si on file
+        plein nord, on n'est pas sur une route est-ouest)
+      - un bonus de continuité (rester sur le tronçon précédent plutôt que
+        sauter sur un voisin à cause d'une mesure bruitée)
+    Le tout pondéré par la précision GPS : quand le GPS est mauvais, on fait
+    moins confiance à la distance brute et plus à la continuité.
+
+    Les paramètres optionnels utilisent des sentinelles numériques (valeur
+    négative = "non fourni") plutôt que None, pour éviter les soucis de
+    conversion null Java<->Python via le pont Chaquopy.
+
+    Renvoie un dict JSON sérialisé :
+        {"limit": int, "junction": str|None, "distance_m": float, "id": int|None}
+    """
+    # Normalisation des sentinelles -> None interne
+    heading = None if heading is None or heading < 0 else float(heading)
+    accuracy_m = None if accuracy_m is None or accuracy_m < 0 else float(accuracy_m)
+    prev_segment_id = None if prev_segment_id is None or prev_segment_id < 0 else int(prev_segment_id)
+
     segments = json.loads(segments_json) if isinstance(segments_json, str) else segments_json
 
+    # Rayon de recherche élargi si le GPS est imprécis (sinon on risque de
+    # ne RIEN trouver alors qu'on est sur une route).
+    radius = max_radius_m
+    if accuracy_m is not None and accuracy_m > max_radius_m:
+        radius = min(accuracy_m * 1.5, 200.0)
+
     best = None
-    best_dist = max_radius_m
+    best_score = float("inf")
+    best_dist = radius
 
     for seg in segments:
         pts = seg.get("points", [])
+        # Distance mini et cap du sous-segment le plus proche
+        seg_min_dist = float("inf")
+        seg_bearing = None
         for i in range(len(pts) - 1):
             lat1, lon1 = pts[i]
             lat2, lon2 = pts[i + 1]
             d = _point_to_segment_distance_m(lat, lon, lat1, lon1, lat2, lon2)
-            if d < best_dist:
-                best_dist = d
-                best = seg
+            if d < seg_min_dist:
+                seg_min_dist = d
+                seg_bearing = _segment_bearing_deg(lat1, lon1, lat2, lon2)
+
+        if seg_min_dist > radius:
+            continue
+
+        # --- Score : on part de la distance (en mètres) ---
+        score = seg_min_dist
+
+        # --- Pénalité de désalignement du cap ---
+        # On n'applique le cap que si on bouge assez vite pour qu'il soit
+        # fiable (heading fourni). Un écart de 90° ajoute une grosse pénalité.
+        if heading is not None and seg_bearing is not None:
+            diff = _bearing_diff(heading, seg_bearing)  # 0-90
+            # 0° -> +0, 90° -> +60 m de pénalité équivalente
+            score += (diff / 90.0) * 60.0
+
+        # --- Bonus de continuité ---
+        # Rester sur le tronçon précédent vaut une "remise" de 25 m : il faut
+        # qu'un autre tronçon soit nettement meilleur pour qu'on saute.
+        if prev_segment_id is not None and seg.get("id") == prev_segment_id:
+            score -= 25.0
+
+        if score < best_score:
+            best_score = score
+            best = seg
+            best_dist = seg_min_dist
 
     if best is None:
         return None
@@ -103,5 +181,6 @@ def nearest_segment(lat, lon, segments_json, max_radius_m=80.0):
             "limit": int(limit),
             "junction": best.get("junction"),
             "distance_m": round(best_dist, 1),
+            "id": best.get("id"),
         }
     )

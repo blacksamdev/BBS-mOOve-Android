@@ -52,11 +52,15 @@ class LocationTrackingService : LifecycleService() {
         override fun onLocationResult(result: LocationResult) {
             val loc = result.lastLocation ?: return
             val speedKmh = (loc.speed * 3.6f).toInt().coerceAtLeast(0)
+            // Le cap GPS (bearing) n'est fiable qu'en mouvement ; à l'arrêt
+            // il est aléatoire. On ne le fournit donc qu'au-dessus de ~5 km/h.
+            val heading = if (loc.hasBearing() && speedKmh >= 5) loc.bearing else null
             _gpsFix.value = GpsFix(
                 lat = loc.latitude,
                 lon = loc.longitude,
                 speedKmh = speedKmh,
                 accuracyM = loc.accuracy,
+                headingDeg = heading,
                 timestampMs = loc.time,
             )
         }

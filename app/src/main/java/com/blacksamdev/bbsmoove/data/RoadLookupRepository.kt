@@ -28,8 +28,20 @@ class RoadLookupRepository(
     private val roadDb = RoadDb(context)
     private val python: PyObject = Python.getInstance().getModule("road_lookup")
 
-    /** À appeler depuis un contexte coroutine (Dispatchers.Default), pas le thread UI. */
-    fun lookup(lat: Double, lon: Double): RoadInfo? {
+    /**
+     * À appeler depuis un contexte coroutine (Dispatchers.Default), pas le thread UI.
+     *
+     * @param heading cap GPS courant en degrés (0-360), ou null si indispo/à l'arrêt
+     * @param accuracyM précision GPS en mètres, ou null
+     * @param prevSegmentId id du tronçon retenu au tick précédent (continuité), ou null
+     */
+    fun lookup(
+        lat: Double,
+        lon: Double,
+        heading: Float? = null,
+        accuracyM: Float? = null,
+        prevSegmentId: Long? = null,
+    ): RoadInfo? {
         val candidates = roadDb.segmentsNear(lat, lon, marginDeg = 0.0015) // ~150m
         if (candidates.isEmpty()) return null
 
@@ -37,6 +49,7 @@ class RoadLookupRepository(
             candidates.forEach { seg ->
                 put(
                     JSONObject().apply {
+                        put("id", seg.id)
                         put("points", JSONArray(seg.points.map { JSONArray(listOf(it.first, it.second)) }))
                         put("maxspeed", seg.maxspeed ?: JSONObject.NULL)
                         put("junction", seg.junction ?: JSONObject.NULL)
@@ -47,7 +60,13 @@ class RoadLookupRepository(
         }
 
         val resultStr = python
-            .callAttr("nearest_segment", lat, lon, segmentsJson.toString(), searchRadiusM)
+            .callAttr(
+                "nearest_segment",
+                lat, lon, segmentsJson.toString(), searchRadiusM,
+                heading?.toDouble() ?: -1.0,
+                accuracyM?.toDouble() ?: -1.0,
+                prevSegmentId ?: -1L,
+            )
             ?.toString()
             ?: return null
 
@@ -58,6 +77,7 @@ class RoadLookupRepository(
             limitKmh = obj.getInt("limit"),
             junction = Junction.fromTag(obj.optString("junction", null)),
             distanceM = obj.getDouble("distance_m"),
+            segmentId = if (obj.isNull("id")) null else obj.getLong("id"),
         )
     }
 

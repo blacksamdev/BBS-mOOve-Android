@@ -54,6 +54,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val _dangerInfo = MutableStateFlow<DangerZoneInfo?>(null)
 
     private var lastState: SpeedState? = null
+    private var lastSegmentId: Long? = null
     private var wasAlerting = false
     private val tripStartMs = System.currentTimeMillis()
     private var speedSum = 0L
@@ -98,8 +99,16 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
             LocationTrackingService.gpsFix.collect { fix ->
                 if (fix == null) return@collect
                 launch(Dispatchers.Default) {
-                    val road = roadRepo.lookup(fix.lat, fix.lon)
+                    val road = roadRepo.lookup(
+                        lat = fix.lat,
+                        lon = fix.lon,
+                        heading = fix.headingDeg,
+                        accuracyM = fix.accuracyM,
+                        prevSegmentId = lastSegmentId,
+                    )
                     _roadInfo.value = road
+                    // Mémorise le tronçon pour le bonus de continuité au tick suivant
+                    if (road?.segmentId != null) lastSegmentId = road.segmentId
                 }
                 launch(Dispatchers.Default) {
                     val danger = dangerRepo.lookup(fix.lat, fix.lon)

@@ -54,8 +54,10 @@ fun SpeedZone(
         val maxByWidth = (maxWidth * 0.88f) / (digitCount * 0.60f)
         val digitHeight = minOf(maxByHeight, maxByWidth)
 
-        // Badge limite ≈ 3/4 de la hauteur d'un chiffre
-        val badgeSize = digitHeight * 0.75f
+        // Badge limite : dimensionné au plus juste pour tenir 3 chiffres
+        // maximum, sans gros vide autour. Réduit (~40%) par rapport à la
+        // version précédente qui était trop grosse.
+        val badgeFontSize = (digitHeight.value * 0.20f).coerceIn(16f, 40f)
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             SevenSegmentNumber(
@@ -73,23 +75,23 @@ fun SpeedZone(
             )
         }
 
-        // Badge limite : décentré bas-droite, ton atténué (pas blanc pur),
-        // taille proportionnelle aux chiffres de vitesse.
+        // Badge limite : décentré bas-droite, ton atténué (pas blanc pur).
+        // Le cercle épouse le nombre (padding serré) au lieu d'une taille fixe.
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 24.dp, bottom = 20.dp)
-                .size(badgeSize)
                 .shadow(2.dp, CircleShape)
                 .background(BgPanel, CircleShape)
-                .border(2.dp, BoneDim, CircleShape),
+                .border(2.dp, BoneDim, CircleShape)
+                .padding(horizontal = (badgeFontSize * 0.45f).dp, vertical = (badgeFontSize * 0.35f).dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = limitKmh.toString(),
                 color = BoneDim,
                 fontWeight = FontWeight.Bold,
-                fontSize = (badgeSize.value * 0.34f).sp,
+                fontSize = badgeFontSize.sp,
             )
         }
     }
