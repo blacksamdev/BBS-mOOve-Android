@@ -25,9 +25,11 @@ def nearest_danger_zone(lat, lon, zones_json, radius_m=DEFAULT_SEARCH_RADIUS_M):
         - "lat": float
         - "lon": float
         - "limit": int (vitesse associée à la zone, pour affichage si besoin)
+        - "category": "danger" | "attention"
 
     Renvoie un dict JSON sérialisé :
-        {"distance_m": float, "limit": int, "should_alert": bool}
+        {"distance_m": float, "limit": int|None, "should_alert": bool,
+         "category": "danger"|"attention"}
     ou None si rien dans le rayon de recherche.
     """
     zones = json.loads(zones_json) if isinstance(zones_json, str) else zones_json
@@ -49,5 +51,6 @@ def nearest_danger_zone(lat, lon, zones_json, radius_m=DEFAULT_SEARCH_RADIUS_M):
             "distance_m": round(best_dist, 1),
             "limit": best.get("limit"),
             "should_alert": best_dist <= ALERT_TRIGGER_DISTANCE_M,
+            "category": best.get("category", "danger"),
         }
     )

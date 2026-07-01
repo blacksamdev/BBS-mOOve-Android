@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.blacksamdev.bbsmoove.model.DangerZoneInfo
 import com.blacksamdev.bbsmoove.ui.theme.Bone
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
+import com.blacksamdev.bbsmoove.ui.theme.StateOrange
 import com.blacksamdev.bbsmoove.ui.theme.StateRed
 import androidx.compose.foundation.background
 
@@ -39,6 +40,10 @@ fun DangerOverlay(
     modifier: Modifier = Modifier,
 ) {
     val show = dangerInfo?.shouldAlert == true
+    val isAttention = dangerInfo?.category == com.blacksamdev.bbsmoove.model.DangerCategory.ATTENTION
+    val accent = if (isAttention) StateOrange else StateRed
+    val title = if (isAttention) "Zone d'attention" else "Zone de danger"
+    val subtitle = if (isAttention) "Soyez vigilant" else "Réduisez votre vitesse"
 
     AnimatedVisibility(
         visible = show,
@@ -53,9 +58,9 @@ fun DangerOverlay(
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                WarningTriangle()
+                WarningTriangle(color = accent)
                 Text(
-                    text = "Zone de danger",
+                    text = title,
                     color = Bone,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
@@ -64,14 +69,14 @@ fun DangerOverlay(
                 )
                 Text(
                     text = "${dangerInfo?.distanceM?.toInt() ?: 0} m",
-                    color = StateRed,
+                    color = accent,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 34.sp,
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 Text(
-                    text = "Réduisez votre vitesse",
+                    text = subtitle,
                     color = BoneDim,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 6.dp),
@@ -79,7 +84,7 @@ fun DangerOverlay(
                 if (isDucking) {
                     Text(
                         text = "🔉 Musique baissée",
-                        color = StateRed,
+                        color = accent,
                         fontSize = 10.sp,
                         modifier = Modifier.padding(top = 14.dp),
                     )
@@ -90,7 +95,7 @@ fun DangerOverlay(
 }
 
 @Composable
-private fun WarningTriangle() {
+private fun WarningTriangle(color: androidx.compose.ui.graphics.Color) {
     Canvas(modifier = Modifier.size(58.dp)) {
         val path = Path().apply {
             moveTo(size.width / 2f, 0f)
@@ -98,6 +103,6 @@ private fun WarningTriangle() {
             lineTo(0f, size.height)
             close()
         }
-        drawPath(path, color = StateRed)
+        drawPath(path, color = color)
     }
 }

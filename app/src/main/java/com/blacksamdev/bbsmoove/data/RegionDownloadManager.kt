@@ -49,101 +49,134 @@ class RegionDownloadManager(private val context: Context) {
     /** Chemin local du .db décompressé pour une région (qu'il existe ou non). */
     fun localDbFile(regionCode: String): File = File(regionsDir, "$regionCode.db")
 
+    /** Chemin local de la base radars (France entière, une seule). */
+    fun radarsDbFile(): File = File(regionsDir, "radars.db")
+
     /** Vrai si la base de cette région est déjà téléchargée et prête. */
     fun isAvailable(regionCode: String): Boolean = localDbFile(regionCode).exists()
 
-    private fun releaseUrl(regionCode: String): String =
-        "https://github.com/blacksamdev/BBS-mOOve-Android/releases/download/osm-data-latest/$regionCode.db.gz"
+    /** Vrai si la base radars est déjà téléchargée. */
+    fun isRadarsAvailable(): Boolean = radarsDbFile().exists()
+
+    private fun releaseUrl(fileName: String): String =
+        "https://github.com/blacksamdev/BBS-mOOve-Android/releases/download/osm-data-latest/$fileName"
 
     /**
-     * Télécharge le .db.gz de la région, le décompresse en .db local.
-     * À appeler depuis une coroutine (ne bloque pas le thread UI).
+     * Télécharge la région (routes) ET les radars (France entière), puis
+     * décompresse. À appeler depuis une coroutine.
+     *
+     * Les radars sont un seul petit fichier national ; la région est le gros
+     * morceau (~20 Mo). On télécharge d'abord la région (progression
+     * visible), puis les radars en fin de course.
      */
     suspend fun download(regionCode: String) = withContext(Dispatchers.IO) {
         try {
-            if (isAvailable(regionCode)) {
-                _state.value = State.Ready(regionCode)
-                return@withContext
+            // 1. Routes de la région
+            if (!isAvailable(regionCode)) {
+                val ok = downloadAndDecompress(
+                    fileName = "$regionCode.db.gz",
+                    finalFile = localDbFile(regionCode),
+                    reportProgress = true,
+                )
+                if (!ok) return@withContext
             }
 
-            val gzTmp = File(regionsDir, "$regionCode.db.gz.tmp")
-            val dbTmp = File(regionsDir, "$regionCode.db.tmp")
-            val dbFinal = localDbFile(regionCode)
-
-            // --- Téléchargement (avec gestion manuelle des redirections) ---
-            // GitHub Releases redirige vers un CDN (objects.githubusercontent.com).
-            // HttpURLConnection ne suit PAS automatiquement une redirection qui
-            // change de domaine/protocole, donc on la suit nous-mêmes.
-            var currentUrl = releaseUrl(regionCode)
-            var connection: HttpURLConnection
-            var redirects = 0
-            while (true) {
-                connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 30_000
-                    readTimeout = 60_000
-                    instanceFollowRedirects = false
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "BBS-mOOve")
-                }
-                val code = connection.responseCode
-                if (code in listOf(301, 302, 303, 307, 308)) {
-                    val location = connection.getHeaderField("Location")
-                    connection.disconnect()
-                    if (location == null || redirects++ > 5) {
-                        _state.value = State.Error("Trop de redirections")
-                        return@withContext
-                    }
-                    currentUrl = location
-                    continue
-                }
-                if (code !in 200..299) {
-                    _state.value = State.Error("HTTP $code")
-                    connection.disconnect()
-                    return@withContext
-                }
-                break
+            // 2. Radars (France entière) — petit fichier, on le (re)prend si absent
+            if (!isRadarsAvailable()) {
+                _state.value = State.Decompressing // libellé générique "préparation"
+                val ok = downloadAndDecompress(
+                    fileName = "radars.db.gz",
+                    finalFile = radarsDbFile(),
+                    reportProgress = false,
+                    minValidBytes = 1_000, // la base radars est petite
+                )
+                if (!ok) return@withContext
             }
-
-            val totalBytes = connection.contentLengthLong
-            var downloaded = 0L
-
-            connection.inputStream.use { input ->
-                gzTmp.outputStream().use { output ->
-                    val buffer = ByteArray(64 * 1024)
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        output.write(buffer, 0, read)
-                        downloaded += read
-                        if (totalBytes > 0) {
-                            val pct = (downloaded * 100 / totalBytes).toInt()
-                            _state.value = State.Downloading(pct)
-                        }
-                    }
-                }
-            }
-
-            // --- Décompression ---
-            _state.value = State.Decompressing
-            GZIPInputStream(gzTmp.inputStream().buffered()).use { gz ->
-                dbTmp.outputStream().use { out -> gz.copyTo(out, 64 * 1024) }
-            }
-
-            // --- Validation minimale + bascule atomique ---
-            if (dbTmp.length() < 10_000) {
-                _state.value = State.Error("Base décompressée invalide")
-                gzTmp.delete(); dbTmp.delete()
-                return@withContext
-            }
-            // rename atomique : la base n'apparaît "prête" que complète
-            if (dbFinal.exists()) dbFinal.delete()
-            dbTmp.renameTo(dbFinal)
-            gzTmp.delete()
 
             _state.value = State.Ready(regionCode)
         } catch (e: Exception) {
             _state.value = State.Error(e.message ?: "Erreur de téléchargement")
         }
+    }
+
+    /**
+     * Télécharge un .gz depuis la Release, le décompresse dans finalFile
+     * (bascule atomique). Renvoie true si succès. En cas d'échec, met à jour
+     * _state en Error et renvoie false.
+     */
+    private fun downloadAndDecompress(
+        fileName: String,
+        finalFile: File,
+        reportProgress: Boolean,
+        minValidBytes: Long = 10_000,
+    ): Boolean {
+        val gzTmp = File(regionsDir, "$fileName.tmp")
+        val dbTmp = File(finalFile.path + ".tmp")
+
+        // --- Téléchargement (gestion manuelle des redirections GitHub->CDN) ---
+        var currentUrl = releaseUrl(fileName)
+        var connection: HttpURLConnection
+        var redirects = 0
+        while (true) {
+            connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 30_000
+                readTimeout = 60_000
+                instanceFollowRedirects = false
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "BBS-mOOve")
+            }
+            val code = connection.responseCode
+            if (code in listOf(301, 302, 303, 307, 308)) {
+                val location = connection.getHeaderField("Location")
+                connection.disconnect()
+                if (location == null || redirects++ > 5) {
+                    _state.value = State.Error("Trop de redirections")
+                    return false
+                }
+                currentUrl = location
+                continue
+            }
+            if (code !in 200..299) {
+                _state.value = State.Error("HTTP $code ($fileName)")
+                connection.disconnect()
+                return false
+            }
+            break
+        }
+
+        val totalBytes = connection.contentLengthLong
+        var downloaded = 0L
+        connection.inputStream.use { input ->
+            gzTmp.outputStream().use { output ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                    downloaded += read
+                    if (reportProgress && totalBytes > 0) {
+                        _state.value = State.Downloading((downloaded * 100 / totalBytes).toInt())
+                    }
+                }
+            }
+        }
+
+        // --- Décompression ---
+        _state.value = State.Decompressing
+        GZIPInputStream(gzTmp.inputStream().buffered()).use { gz ->
+            dbTmp.outputStream().use { out -> gz.copyTo(out, 64 * 1024) }
+        }
+
+        if (dbTmp.length() < minValidBytes) {
+            _state.value = State.Error("Base décompressée invalide ($fileName)")
+            gzTmp.delete(); dbTmp.delete()
+            return false
+        }
+
+        if (finalFile.exists()) finalFile.delete()
+        dbTmp.renameTo(finalFile)
+        gzTmp.delete()
+        return true
     }
 
     /** Supprime la base d'une région (pour gestion du cache plus tard). */

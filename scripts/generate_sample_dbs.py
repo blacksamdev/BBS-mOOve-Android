@@ -88,18 +88,19 @@ def build_radars_db():
             id INTEGER PRIMARY KEY,
             lat REAL,
             lon REAL,
-            limit_kmh INTEGER
+            limit_kmh INTEGER,
+            category TEXT
         )
         """
     )
     conn.execute("CREATE INDEX idx_latlon ON danger_zones(lat, lon)")
 
     sample_zones = [
-        (46.7810, 4.8500, 50),
-        (46.9000, 5.0000, 90),
+        (46.7810, 4.8500, 50, "danger"),
+        (46.9000, 5.0000, 90, "danger"),
     ]
     conn.executemany(
-        "INSERT INTO danger_zones (lat, lon, limit_kmh) VALUES (?, ?, ?)",
+        "INSERT INTO danger_zones (lat, lon, limit_kmh, category) VALUES (?, ?, ?, ?)",
         sample_zones,
     )
     conn.commit()

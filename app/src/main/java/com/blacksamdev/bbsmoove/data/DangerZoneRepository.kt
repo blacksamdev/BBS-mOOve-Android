@@ -20,11 +20,33 @@ import java.io.FileOutputStream
  * Index recommandé : CREATE INDEX idx_latlon ON danger_zones(lat, lon);
  */
 class DangerZoneRepository(
-    context: Context,
+    private val context: Context,
     private val searchRadiusM: Double = 1200.0,
 ) {
-    private val db: SQLiteDatabase = openFromAssets(context, "radars.db")
+    @Volatile
+    private var db: SQLiteDatabase = openBest(context)
     private val python: PyObject = Python.getInstance().getModule("danger_lookup")
+
+    /**
+     * Ouvre la meilleure base radars disponible :
+     *  1. la base téléchargée (France entière) dans filesDir/regions/radars.db
+     *  2. à défaut, l'asset radars.db embarqué (2 zones de test bidon).
+     */
+    private fun openBest(context: Context): SQLiteDatabase {
+        val downloaded = File(File(context.filesDir, "regions"), "radars.db")
+        if (downloaded.exists() && downloaded.length() > 1_000) {
+            return SQLiteDatabase.openDatabase(downloaded.path, null, SQLiteDatabase.OPEN_READONLY)
+        }
+        return openFromAssets(context, "radars.db")
+    }
+
+    /** Recharge après téléchargement de la base radars réelle. */
+    @Synchronized
+    fun reload() {
+        val old = db
+        db = openBest(context)
+        if (old !== db) old.close()
+    }
 
     private fun openFromAssets(context: Context, assetName: String): SQLiteDatabase {
         val dbFile = File(context.getDatabasePath(assetName).path)
@@ -50,6 +72,7 @@ class DangerZoneRepository(
                         put("lat", z.lat)
                         put("lon", z.lon)
                         put("limit", z.limitKmh ?: JSONObject.NULL)
+                        put("category", z.category)
                     }
                 )
             }
@@ -67,15 +90,31 @@ class DangerZoneRepository(
             distanceM = obj.getDouble("distance_m"),
             limitKmh = if (obj.isNull("limit")) null else obj.getInt("limit"),
             shouldAlert = obj.getBoolean("should_alert"),
+            category = com.blacksamdev.bbsmoove.model.DangerCategory.fromTag(
+                obj.optString("category", "danger")
+            ),
         )
     }
 
-    private data class RawZone(val lat: Double, val lon: Double, val limitKmh: Int?)
+    private data class RawZone(
+        val lat: Double,
+        val lon: Double,
+        val limitKmh: Int?,
+        val category: String,
+    )
 
     private fun zonesNear(lat: Double, lon: Double, marginDeg: Double): List<RawZone> {
+        // La colonne category peut être absente d'anciennes bases -> on la
+        // lit défensivement (fallback "danger" si la colonne manque).
+        val hasCategory = tableHasColumn("danger_zones", "category")
+        val columns = if (hasCategory) {
+            arrayOf("lat", "lon", "limit_kmh", "category")
+        } else {
+            arrayOf("lat", "lon", "limit_kmh")
+        }
         val cursor = db.query(
             "danger_zones",
-            arrayOf("lat", "lon", "limit_kmh"),
+            columns,
             "lat >= ? AND lat <= ? AND lon >= ? AND lon <= ?",
             arrayOf(
                 (lat - marginDeg).toString(),
@@ -93,11 +132,22 @@ class DangerZoneRepository(
                         lat = it.getDouble(0),
                         lon = it.getDouble(1),
                         limitKmh = if (it.isNull(2)) null else it.getInt(2),
+                        category = if (hasCategory && !it.isNull(3)) it.getString(3) else "danger",
                     )
                 )
             }
         }
         return results
+    }
+
+    private fun tableHasColumn(table: String, column: String): Boolean {
+        db.rawQuery("PRAGMA table_info($table)", null).use { c ->
+            val nameIdx = c.getColumnIndex("name")
+            while (c.moveToNext()) {
+                if (c.getString(nameIdx) == column) return true
+            }
+        }
+        return false
     }
 
     fun close() = db.close()

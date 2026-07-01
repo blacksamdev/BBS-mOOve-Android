@@ -65,10 +65,12 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     fun downloadCurrentRegion() {
         viewModelScope.launch {
             regionDownloader.download(currentRegionCode)
-            // Si le téléchargement a réussi, on bascule le lookup sur la
-            // vraie base sans redémarrer l'app.
+            // Bascule les lookups sur les vraies bases sans redémarrer l'app.
             if (regionDownloader.isAvailable(currentRegionCode)) {
                 roadRepo.reload()
+            }
+            if (regionDownloader.isRadarsAvailable()) {
+                dangerRepo.reload()
             }
         }
     }
@@ -88,11 +90,14 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     init {
         mediaMonitor.start()
 
-        // Si la base régionale a déjà été téléchargée lors d'une session
-        // précédente, on recharge le lookup dessus et on masque le bouton.
+        // Si les bases ont déjà été téléchargées lors d'une session
+        // précédente, on recharge les lookups dessus et on masque le bouton.
         regionDownloader.markReadyIfAvailable(currentRegionCode)
         if (regionDownloader.isAvailable(currentRegionCode)) {
             roadRepo.reload()
+        }
+        if (regionDownloader.isRadarsAvailable()) {
+            dangerRepo.reload()
         }
 
         viewModelScope.launch {

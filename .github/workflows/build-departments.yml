@@ -31,6 +31,15 @@ jobs:
           OUTPUT_DIR: dist
         run: python3 scripts/build_all_departments.py
 
+      - name: Télécharger et convertir les radars (France entière)
+        run: |
+          curl -fSL --retry 3 --retry-delay 5 \
+            -A "Mozilla/5.0 (compatible; BBS-mOOve-build/1.0)" \
+            -o dist/radars.csv \
+            "https://www.data.gouv.fr/api/1/datasets/r/8a22b5a8-4b65-41be-891a-7c0aead4ba51"
+          python3 scripts/radars_to_db.py dist/radars.csv dist/radars.db
+          rm -f dist/radars.csv dist/radars.db
+
       - name: Lister les .db.gz produits
         run: ls -la dist/*.db.gz
 

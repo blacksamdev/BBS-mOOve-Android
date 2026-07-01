@@ -26,7 +26,18 @@ data class DangerZoneInfo(
     val distanceM: Double,
     val limitKmh: Int?,
     val shouldAlert: Boolean,
+    val category: DangerCategory,
 )
+
+enum class DangerCategory {
+    DANGER,      // radar de vitesse -> alerte rouge "Zone de danger"
+    ATTENTION;   // franchissement -> alerte orange "Zone d'attention"
+
+    companion object {
+        fun fromTag(tag: String?): DangerCategory =
+            if (tag == "attention") ATTENTION else DANGER
+    }
+}
 
 /** Position + vitesse + précision telles que fournies par FusedLocationProviderClient. */
 data class GpsFix(
