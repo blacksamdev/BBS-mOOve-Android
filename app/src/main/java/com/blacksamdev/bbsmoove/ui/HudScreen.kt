@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.blacksamdev.bbsmoove.data.RegionDownloadManager
 import com.blacksamdev.bbsmoove.ui.theme.BgDeep
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
 import com.blacksamdev.bbsmoove.ui.theme.Gold
@@ -109,15 +110,15 @@ fun HudScreen(viewModel: HudViewModel) {
 
 @Composable
 private fun RegionDownloadControl(
-    state: com.blacksamdev.bbsmoove.data.RegionDownloadManager.State,
+    state: RegionDownloadManager.State,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Ready -> {
+        is RegionDownloadManager.State.Ready -> {
             // Carte prête : on n'affiche rien (le bouton a disparu).
         }
-        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Downloading -> {
+        is RegionDownloadManager.State.Downloading -> {
             Text(
                 text = "Téléchargement carte… ${state.percent}%",
                 color = Gold,
@@ -125,7 +126,7 @@ private fun RegionDownloadControl(
                 modifier = modifier,
             )
         }
-        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Decompressing -> {
+        is RegionDownloadManager.State.Decompressing -> {
             Text(
                 text = "Décompression…",
                 color = Gold,
@@ -133,7 +134,7 @@ private fun RegionDownloadControl(
                 modifier = modifier,
             )
         }
-        is com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Error -> {
+        is RegionDownloadManager.State.Error -> {
             Text(
                 text = "Erreur : ${state.message} — toucher pour réessayer",
                 color = StateRed,
@@ -141,7 +142,7 @@ private fun RegionDownloadControl(
                 modifier = modifier.clickable { onDownload() },
             )
         }
-        com.blacksamdev.bbsmoove.data.RegionDownloadManager.State.Idle -> {
+        RegionDownloadManager.State.Idle -> {
             Text(
                 text = "⬇ Télécharger ma région",
                 color = Gold,

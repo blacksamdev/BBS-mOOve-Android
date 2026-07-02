@@ -1,13 +1,11 @@
 package com.blacksamdev.bbsmoove.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,7 +18,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import com.blacksamdev.bbsmoove.model.SpeedState
-import com.blacksamdev.bbsmoove.ui.theme.Bone
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
 import com.blacksamdev.bbsmoove.ui.theme.BgPanel
 

@@ -106,8 +106,14 @@ class RoadDb(private val context: Context) {
                 val junction = if (it.isNull(3)) null else it.getString(3)
                 val isAgglo = it.getInt(4) == 1
 
-                val points = parsePointsJson(pointsJson)
-                results.add(CandidateSegment(id, points, maxspeed, junction, isAgglo))
+                try {
+                    val points = parsePointsJson(pointsJson)
+                    if (points.size >= 2) {
+                        results.add(CandidateSegment(id, points, maxspeed, junction, isAgglo))
+                    }
+                } catch (e: Exception) {
+                    // Un segment au JSON corrompu est ignoré, pas fatal.
+                }
             }
         }
         return results

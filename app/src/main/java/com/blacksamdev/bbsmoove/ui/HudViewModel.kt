@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.blacksamdev.bbsmoove.data.DangerZoneRepository
+import com.blacksamdev.bbsmoove.data.RegionDownloadManager
 import com.blacksamdev.bbsmoove.data.RoadLookupRepository
 import com.blacksamdev.bbsmoove.model.DangerZoneInfo
 import com.blacksamdev.bbsmoove.model.GpsFix
@@ -21,7 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class HudUiState(
     val speedKmh: Int = 0,
@@ -42,7 +42,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val mediaMonitor = MediaSessionMonitor(application)
     private val audioDucking = AudioDuckingManager(application)
     private val soundPlayer = AlertSoundPlayer()
-    private val regionDownloader = com.blacksamdev.bbsmoove.data.RegionDownloadManager(application)
+    private val regionDownloader = RegionDownloadManager(application)
 
     /** État du téléchargement de région, observé par l'UI (bouton + progression). */
     val downloadState = regionDownloader.state
@@ -104,21 +104,32 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
             LocationTrackingService.gpsFix.collect { fix ->
                 if (fix == null) return@collect
                 launch(Dispatchers.Default) {
-                    val road = roadRepo.lookup(
-                        lat = fix.lat,
-                        lon = fix.lon,
-                        heading = fix.headingDeg,
-                        accuracyM = fix.accuracyM,
-                        prevSegmentId = lastSegmentId,
-                    )
-                    _roadInfo.value = road
-                    // Mémorise le tronçon pour le bonus de continuité au tick suivant
-                    if (road?.segmentId != null) lastSegmentId = road.segmentId
+                    try {
+                        val road = roadRepo.lookup(
+                            lat = fix.lat,
+                            lon = fix.lon,
+                            heading = fix.headingDeg,
+                            accuracyM = fix.accuracyM,
+                            prevSegmentId = lastSegmentId,
+                        )
+                        _roadInfo.value = road
+                        // Mémorise le tronçon pour le bonus de continuité au tick suivant
+                        if (road?.segmentId != null) lastSegmentId = road.segmentId
+                    } catch (e: Exception) {
+                        // Un échec de lookup (base, Python, données) ne doit
+                        // JAMAIS faire tomber l'app : on log et on garde la
+                        // dernière limite connue.
+                        android.util.Log.e("BBSmOOve", "lookup route échoué", e)
+                    }
                 }
                 launch(Dispatchers.Default) {
-                    val danger = dangerRepo.lookup(fix.lat, fix.lon)
-                    _dangerInfo.value = danger
-                    handleDangerTransition(danger)
+                    try {
+                        val danger = dangerRepo.lookup(fix.lat, fix.lon)
+                        _dangerInfo.value = danger
+                        handleDangerTransition(danger)
+                    } catch (e: Exception) {
+                        android.util.Log.e("BBSmOOve", "lookup radar échoué", e)
+                    }
                 }
                 recordStat(fix.speedKmh)
             }

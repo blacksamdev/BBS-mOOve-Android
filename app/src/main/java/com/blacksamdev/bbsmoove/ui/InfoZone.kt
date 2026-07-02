@@ -25,6 +25,7 @@ import com.blacksamdev.bbsmoove.ui.theme.BoneDim
 import com.blacksamdev.bbsmoove.ui.theme.BgPanel2
 import com.blacksamdev.bbsmoove.ui.theme.GoldDim
 import com.blacksamdev.bbsmoove.ui.theme.LineColor
+import com.blacksamdev.bbsmoove.ui.theme.StateRed
 
 /**
  * Zone 2 du HUD : musique (niveau 1, MediaSession) si une lecture est
@@ -99,7 +100,7 @@ private fun MediaPanel(nowPlaying: NowPlaying, isDucking: Boolean) {
         if (isDucking) {
             Text(
                 text = "🔉 Volume musique réduit",
-                color = com.blacksamdev.bbsmoove.ui.theme.StateRed,
+                color = StateRed,
                 fontSize = 9.sp,
                 modifier = Modifier.padding(top = 6.dp),
             )

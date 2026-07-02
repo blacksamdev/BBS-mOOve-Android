@@ -13,12 +13,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.blacksamdev.bbsmoove.model.DangerCategory
 import com.blacksamdev.bbsmoove.model.DangerZoneInfo
 import com.blacksamdev.bbsmoove.ui.theme.Bone
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
@@ -40,7 +40,7 @@ fun DangerOverlay(
     modifier: Modifier = Modifier,
 ) {
     val show = dangerInfo?.shouldAlert == true
-    val isAttention = dangerInfo?.category == com.blacksamdev.bbsmoove.model.DangerCategory.ATTENTION
+    val isAttention = dangerInfo?.category == DangerCategory.ATTENTION
     val accent = if (isAttention) StateOrange else StateRed
     val title = if (isAttention) "Zone d'attention" else "Zone de danger"
     val subtitle = if (isAttention) "Soyez vigilant" else "Réduisez votre vitesse"

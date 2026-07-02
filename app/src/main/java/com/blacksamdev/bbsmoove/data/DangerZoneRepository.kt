@@ -6,6 +6,7 @@ import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 import org.json.JSONArray
 import org.json.JSONObject
+import com.blacksamdev.bbsmoove.model.DangerCategory
 import com.blacksamdev.bbsmoove.model.DangerZoneInfo
 import java.io.File
 import java.io.FileOutputStream
@@ -90,7 +91,7 @@ class DangerZoneRepository(
             distanceM = obj.getDouble("distance_m"),
             limitKmh = if (obj.isNull("limit")) null else obj.getInt("limit"),
             shouldAlert = obj.getBoolean("should_alert"),
-            category = com.blacksamdev.bbsmoove.model.DangerCategory.fromTag(
+            category = DangerCategory.fromTag(
                 obj.optString("category", "danger")
             ),
         )

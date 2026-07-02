@@ -108,7 +108,7 @@ class LocationTrackingService : LifecycleService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "BBS Speed — suivi GPS",
+            "BBS mOOve — suivi GPS",
             NotificationManager.IMPORTANCE_LOW,
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -121,7 +121,7 @@ class LocationTrackingService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("BBS Speed actif")
+            .setContentTitle("BBS mOOve actif")
             .setContentText("Suivi de la vitesse en cours")
             .setSmallIcon(android.R.drawable.ic_menu_compass) // à remplacer par une icône BBS dédiée
             .setContentIntent(openAppIntent)
