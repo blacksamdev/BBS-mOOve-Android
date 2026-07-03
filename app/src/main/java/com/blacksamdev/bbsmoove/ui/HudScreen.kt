@@ -85,16 +85,28 @@ fun HudScreen(viewModel: HudViewModel) {
                 }
             }
 
-            // Badge de version discret (coin bas-gauche) : permet de vérifier
-            // d'un coup d'œil quelle build tourne réellement sur le téléphone.
-            Text(
-                text = "v${com.blacksamdev.bbsmoove.BuildConfig.VERSION_NAME}",
-                color = BoneDim,
-                fontSize = 9.sp,
+            // Badge diagnostic (coin bas-gauche) : version + base routes
+            // réellement chargée + dernière erreur de lookup s'il y en a une.
+            // Permet de diagnostiquer sans adb.
+            val lookupError by viewModel.lookupError.collectAsState()
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 8.dp, bottom = 6.dp),
-            )
+            ) {
+                lookupError?.let { err ->
+                    Text(
+                        text = err,
+                        color = StateRed,
+                        fontSize = 9.sp,
+                    )
+                }
+                Text(
+                    text = "v${com.blacksamdev.bbsmoove.BuildConfig.VERSION_NAME} · ${viewModel.roadDbSource()}",
+                    color = BoneDim,
+                    fontSize = 9.sp,
+                )
+            }
 
             // Bouton "Télécharger ma région" + progression (coin haut-droite).
             RegionDownloadControl(

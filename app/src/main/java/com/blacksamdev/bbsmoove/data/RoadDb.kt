@@ -31,6 +31,11 @@ class RoadDb(private val context: Context) {
     @Volatile
     private var db: SQLiteDatabase = openBest(context)
 
+    /** Chemin de la base réellement ouverte (diagnostic HUD). */
+    @Volatile
+    var activeSource: String = "?"
+        private set
+
     /**
      * Ouvre la meilleure base disponible :
      *  1. une base régionale téléchargée dans filesDir/regions/ (réelle)
@@ -40,8 +45,10 @@ class RoadDb(private val context: Context) {
     private fun openBest(context: Context): SQLiteDatabase {
         val downloaded = firstDownloadedRegion(context)
         if (downloaded != null) {
+            activeSource = downloaded.name
             return SQLiteDatabase.openDatabase(downloaded.path, null, SQLiteDatabase.OPEN_READONLY)
         }
+        activeSource = "asset(bidon)"
         return openFromAssets(context, "osm_speed.db")
     }
 

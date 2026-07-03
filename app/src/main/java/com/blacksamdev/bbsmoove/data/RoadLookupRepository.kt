@@ -84,5 +84,8 @@ class RoadLookupRepository(
     /** Recharge la base après un téléchargement de région réussi. */
     fun reload() = roadDb.reload()
 
+    /** Base réellement chargée (diagnostic HUD). */
+    fun activeSource(): String = roadDb.activeSource
+
     fun close() = roadDb.close()
 }

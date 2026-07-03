@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -52,6 +53,13 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _roadInfo = MutableStateFlow<RoadInfo?>(null)
     private val _dangerInfo = MutableStateFlow<DangerZoneInfo?>(null)
+
+    /** Dernière erreur de lookup, affichée en debug dans le HUD (diagnostic sans adb). */
+    private val _lookupError = MutableStateFlow<String?>(null)
+    val lookupError = _lookupError.asStateFlow()
+
+    /** Base routes réellement chargée (diagnostic HUD). */
+    fun roadDbSource(): String = roadRepo.activeSource()
 
     private var lastState: SpeedState? = null
     private var lastSegmentId: Long? = null
@@ -113,6 +121,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                             prevSegmentId = lastSegmentId,
                         )
                         _roadInfo.value = road
+                        _lookupError.value = null
                         // Mémorise le tronçon pour le bonus de continuité au tick suivant
                         if (road?.segmentId != null) lastSegmentId = road.segmentId
                     } catch (e: Exception) {
@@ -120,6 +129,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                         // JAMAIS faire tomber l'app : on log et on garde la
                         // dernière limite connue.
                         android.util.Log.e("BBSmOOve", "lookup route échoué", e)
+                        _lookupError.value = "ROUTE: ${e.javaClass.simpleName}: ${e.message?.take(120)}"
                     }
                 }
                 launch(Dispatchers.Default) {
@@ -129,6 +139,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                         handleDangerTransition(danger)
                     } catch (e: Exception) {
                         android.util.Log.e("BBSmOOve", "lookup radar échoué", e)
+                        _lookupError.value = "RADAR: ${e.javaClass.simpleName}: ${e.message?.take(120)}"
                     }
                 }
                 recordStat(fix.speedKmh)
