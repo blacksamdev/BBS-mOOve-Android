@@ -166,8 +166,11 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         val limit = road?.limitKmh ?: 50
         val state = SpeedState.from(speed, limit)
 
-        if (lastState != null && lastState != state) {
-            soundPlayer.playFor(state)
+        if (lastState != state) {
+            // Le player décide du son selon le SENS (montée = alerte,
+            // descente = son doux) et reste muet au tout premier passage
+            // (lastState == null, au démarrage).
+            soundPlayer.playTransition(prev = lastState, next = state)
         }
         lastState = state
 
