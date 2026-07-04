@@ -57,6 +57,11 @@ class RoadDb(private val context: Context) {
         val regionsDir = File(context.filesDir, "regions")
         if (!regionsDir.isDirectory) return null
         return regionsDir.listFiles { f -> f.name.endsWith(".db") }
+            // radars.db vit dans le même dossier mais c'est la base des
+            // zones de danger, pas une base routes : sans cette exclusion,
+            // listFiles pouvait la renvoyer en premier et RoadDb l'ouvrait
+            // à la place de bourgogne.db -> "no such table: road_segments".
+            ?.filterNot { it.name == "radars.db" }
             ?.firstOrNull { it.length() > 10_000 }
     }
 

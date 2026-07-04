@@ -81,7 +81,7 @@ fun SpeedZone(
                 .shadow(2.dp, CircleShape)
                 .background(BgPanel, CircleShape)
                 .border(2.dp, BoneDim, CircleShape)
-                .padding(horizontal = (badgeFontSize * 0.45f).dp, vertical = (badgeFontSize * 0.35f).dp),
+                .padding(horizontal = (badgeFontSize * 0.55f).dp, vertical = (badgeFontSize * 0.42f).dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
