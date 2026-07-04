@@ -42,13 +42,15 @@ fun SpeedZone(
         contentAlignment = Alignment.Center,
     ) {
         // On exploite toute la place dispo. Le facteur largeur dépend du
-        // nombre de chiffres (1, 2 ou 3 : "9", "90", "180") pour que même
-        // un "180" tienne en largeur sans déborder.
-        val digitCount = speedKmh.coerceAtLeast(0).toString().length
+        // Taille FIXE des chiffres : on dimensionne toujours pour le pire
+        // cas (3 chiffres, ex "180"), et on applique cette même taille que
+        // la vitesse ait 1, 2 ou 3 chiffres. Un "9" seul reste donc de la
+        // même taille que dans "180" -- pas de chiffre qui grossit/rétrécit
+        // selon la vitesse, plus reposant à lire en conduisant.
+        val fixedDigitCount = 3
         // Ratio d'un chiffre 7-seg : largeur ≈ 0.52 × hauteur (44/84).
-        // Largeur totale ≈ digitCount × 0.52 × h + espacements.
         val maxByHeight = maxHeight * 0.62f
-        val maxByWidth = (maxWidth * 0.88f) / (digitCount * 0.60f)
+        val maxByWidth = (maxWidth * 0.88f) / (fixedDigitCount * 0.60f)
         val digitHeight = minOf(maxByHeight, maxByWidth)
 
         // Badge limite : dimensionné au plus juste pour tenir 3 chiffres
