@@ -61,6 +61,9 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     /** Base routes réellement chargée (diagnostic HUD). */
     fun roadDbSource(): String = roadRepo.activeSource()
 
+    /** Base radars réellement chargée (diagnostic HUD). */
+    fun radarDbSource(): String = dangerRepo.activeSource
+
     private var lastState: SpeedState? = null
     private var lastSegmentId: Long? = null
     private var wasAlerting = false

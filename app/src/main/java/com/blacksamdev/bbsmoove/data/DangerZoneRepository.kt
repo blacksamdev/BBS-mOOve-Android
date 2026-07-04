@@ -28,6 +28,11 @@ class DangerZoneRepository(
     private var db: SQLiteDatabase = openBest(context)
     private val python: PyObject = Python.getInstance().getModule("danger_lookup")
 
+    /** Base radars réellement ouverte (diagnostic HUD). */
+    @Volatile
+    var activeSource: String = "?"
+        private set
+
     /**
      * Ouvre la meilleure base radars disponible :
      *  1. la base téléchargée (France entière) dans filesDir/regions/radars.db
@@ -36,8 +41,10 @@ class DangerZoneRepository(
     private fun openBest(context: Context): SQLiteDatabase {
         val downloaded = File(File(context.filesDir, "regions"), "radars.db")
         if (downloaded.exists() && downloaded.length() > 1_000) {
+            activeSource = "radars.db(dl)"
             return SQLiteDatabase.openDatabase(downloaded.path, null, SQLiteDatabase.OPEN_READONLY)
         }
+        activeSource = "radars(bidon)"
         return openFromAssets(context, "radars.db")
     }
 

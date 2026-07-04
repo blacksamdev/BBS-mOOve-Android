@@ -102,7 +102,7 @@ fun HudScreen(viewModel: HudViewModel) {
                     )
                 }
                 Text(
-                    text = "v${com.blacksamdev.bbsmoove.BuildConfig.VERSION_NAME} · ${viewModel.roadDbSource()}",
+                    text = "v${com.blacksamdev.bbsmoove.BuildConfig.VERSION_NAME} · ${viewModel.roadDbSource()} · ${viewModel.radarDbSource()}",
                     color = BoneDim,
                     fontSize = 9.sp,
                 )
