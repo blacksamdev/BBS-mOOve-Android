@@ -1,25 +1,28 @@
 package com.blacksamdev.bbsmoove.service
 
+import android.content.Context
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.ToneGenerator
+import com.blacksamdev.bbsmoove.R
 import com.blacksamdev.bbsmoove.model.SpeedState
 
 /**
  * Son directionnel à chaque changement de couleur, selon le SENS :
  *
  *  - Aggravation (on accélère / on franchit un seuil vers le haut) :
- *      vert -> orange   : double bip d'attention
- *      orange/vert -> rouge : bip d'erreur franc
+ *      vert -> orange       : double bip d'attention (ToneGenerator)
+ *      orange/vert -> rouge : bip d'erreur franc (ToneGenerator)
  *  - Amélioration (on ralentit, on revient dans les clous) :
- *      rouge -> orange, orange -> vert, rouge -> vert : son doux distinct
- *  - Premier passage vers le vert depuis l'arrêt (prev == null) : MUET,
- *    pour ne pas biper bêtement au démarrage.
- *
- * ToneGenerator évite d'embarquer des fichiers audio.
+ *      deux bips DESCENDANTS aigu->grave (fichier res/raw embarqué), car
+ *      ToneGenerator ne sait pas produire un grave pur -> franchement
+ *      distinct des bips aigus d'alerte.
+ *  - Premier passage vers le vert depuis l'arrêt (prev == null) : MUET.
  */
-class AlertSoundPlayer {
+class AlertSoundPlayer(private val context: Context) {
 
     private val toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+    private var descendPlayer: MediaPlayer? = null
 
     private fun rank(state: SpeedState): Int = when (state) {
         SpeedState.OK -> 0
@@ -47,13 +50,28 @@ class AlertSoundPlayer {
                 toneGenerator.startTone(tone, 180)
             }
             delta < 0 -> {
-                // Amélioration : un seul son doux, quel que soit le palier
-                // regagné (rouge->orange, orange->vert, rouge->vert).
-                toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 120)
+                // Amélioration : deux bips descendants (fichier embarqué).
+                playDescending()
             }
-            // delta == 0 : même état, aucun son (ne devrait pas arriver ici).
+            // delta == 0 : même état, aucun son.
         }
     }
 
-    fun release() = toneGenerator.release()
+    private fun playDescending() {
+        // Libère une éventuelle lecture précédente avant d'en relancer une.
+        descendPlayer?.release()
+        descendPlayer = MediaPlayer.create(context, R.raw.retour_descendant)?.apply {
+            setOnCompletionListener {
+                it.release()
+                if (descendPlayer === it) descendPlayer = null
+            }
+            start()
+        }
+    }
+
+    fun release() {
+        toneGenerator.release()
+        descendPlayer?.release()
+        descendPlayer = null
+    }
 }

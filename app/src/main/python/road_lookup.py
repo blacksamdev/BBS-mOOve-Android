@@ -154,11 +154,14 @@ def nearest_segment(
             # 0° -> +0, 90° -> +60 m de pénalité équivalente
             score += (diff / 90.0) * 60.0
 
-        # --- Bonus de continuité ---
-        # Rester sur le tronçon précédent vaut une "remise" de 25 m : il faut
-        # qu'un autre tronçon soit nettement meilleur pour qu'on saute.
-        if prev_segment_id is not None and seg.get("id") == prev_segment_id:
-            score -= 25.0
+        # --- Continuité : volontairement DÉSACTIVÉE ---
+        # Un bonus de continuité (favoriser le tronçon précédent) évitait les
+        # sauts vers une parallèle, mais au prix d'un retard visible de
+        # 20-30 m à CHAQUE changement de tronçon (l'ancien gardait son
+        # avantage même après la jonction). Comme le filtre de cap ci-dessus
+        # écarte déjà efficacement les routes mal orientées, on préfère une
+        # bascule immédiate et franche, sans bonus de continuité.
+        # (prev_segment_id est conservé dans la signature pour un usage futur.)
 
         if score < best_score:
             best_score = score

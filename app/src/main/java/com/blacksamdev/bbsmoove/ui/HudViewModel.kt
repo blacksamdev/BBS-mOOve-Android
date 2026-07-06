@@ -42,7 +42,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val dangerRepo = DangerZoneRepository(application)
     private val mediaMonitor = MediaSessionMonitor(application)
     private val audioDucking = AudioDuckingManager(application)
-    private val soundPlayer = AlertSoundPlayer()
+    private val soundPlayer = AlertSoundPlayer(application)
     private val regionDownloader = RegionDownloadManager(application)
 
     /** État du téléchargement de région, observé par l'UI (bouton + progression). */
