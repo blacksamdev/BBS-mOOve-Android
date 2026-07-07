@@ -1,28 +1,28 @@
 package com.blacksamdev.bbsmoove.service
 
 import android.content.Context
-import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.ToneGenerator
 import com.blacksamdev.bbsmoove.R
 import com.blacksamdev.bbsmoove.model.SpeedState
 
 /**
- * Son directionnel à chaque changement de couleur, selon le SENS :
+ * Son directionnel à chaque changement de couleur, selon le SENS.
  *
- *  - Aggravation (on accélère / on franchit un seuil vers le haut) :
- *      vert -> orange       : double bip d'attention (ToneGenerator)
- *      orange/vert -> rouge : bip d'erreur franc (ToneGenerator)
- *  - Amélioration (on ralentit, on revient dans les clous) :
- *      deux bips DESCENDANTS aigu->grave (fichier res/raw embarqué), car
- *      ToneGenerator ne sait pas produire un grave pur -> franchement
- *      distinct des bips aigus d'alerte.
+ * TOUS les sons passent par MediaPlayer et des fichiers WAV embarqués
+ * (res/raw) générés à la MÊME amplitude -> volumes homogènes entre eux.
+ * (On n'utilise plus ToneGenerator, dont le niveau différait du MediaPlayer
+ * et créait un déséquilibre entre alertes et son de retour.)
+ *
+ *  - Aggravation :
+ *      vert -> orange       : double bip aigu (montee_orange)
+ *      orange/vert -> rouge : bip franc insistant (montee_rouge)
+ *  - Amélioration (retour dans les clous) :
+ *      deux bips descendants aigu->grave (retour_descendant)
  *  - Premier passage vers le vert depuis l'arrêt (prev == null) : MUET.
  */
 class AlertSoundPlayer(private val context: Context) {
 
-    private val toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
-    private var descendPlayer: MediaPlayer? = null
+    private var player: MediaPlayer? = null
 
     private fun rank(state: SpeedState): Int = when (state) {
         SpeedState.OK -> 0
@@ -39,39 +39,30 @@ class AlertSoundPlayer(private val context: Context) {
         if (prev == null) return
 
         val delta = rank(next) - rank(prev)
-        when {
-            delta > 0 -> {
-                // Aggravation : son d'alerte selon le niveau atteint.
-                val tone = if (next == SpeedState.EXCES) {
-                    ToneGenerator.TONE_SUP_ERROR      // rouge : bip franc
-                } else {
-                    ToneGenerator.TONE_PROP_BEEP2     // orange : double bip
-                }
-                toneGenerator.startTone(tone, 180)
-            }
-            delta < 0 -> {
-                // Amélioration : deux bips descendants (fichier embarqué).
-                playDescending()
-            }
-            // delta == 0 : même état, aucun son.
+        val resId = when {
+            delta > 0 && next == SpeedState.EXCES -> R.raw.montee_rouge
+            delta > 0 -> R.raw.montee_orange
+            delta < 0 -> R.raw.retour_descendant
+            else -> return // même état : aucun son
         }
+        play(resId)
     }
 
-    private fun playDescending() {
-        // Libère une éventuelle lecture précédente avant d'en relancer une.
-        descendPlayer?.release()
-        descendPlayer = MediaPlayer.create(context, R.raw.retour_descendant)?.apply {
+    private fun play(resId: Int) {
+        // Libère la lecture précédente avant d'en relancer une (évite le
+        // cumul de MediaPlayer si les transitions s'enchaînent vite).
+        player?.release()
+        player = MediaPlayer.create(context, resId)?.apply {
             setOnCompletionListener {
                 it.release()
-                if (descendPlayer === it) descendPlayer = null
+                if (player === it) player = null
             }
             start()
         }
     }
 
     fun release() {
-        toneGenerator.release()
-        descendPlayer?.release()
-        descendPlayer = null
+        player?.release()
+        player = null
     }
 }
