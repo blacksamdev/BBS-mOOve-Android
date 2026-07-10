@@ -33,10 +33,27 @@ class AlertSoundPlayer(private val context: Context) {
     /**
      * @param prev état précédent (null = premier calcul, au démarrage)
      * @param next nouvel état
+     * @param soundGreen/soundOrange/soundRed toggles des options : le son
+     *        d'une transition est contrôlé par le toggle de la zone
+     *        d'ARRIVÉE (monter en orange -> soundOrange ; revenir au vert
+     *        -> soundGreen ; etc.)
      */
-    fun playTransition(prev: SpeedState?, next: SpeedState) {
+    fun playTransition(
+        prev: SpeedState?,
+        next: SpeedState,
+        soundGreen: Boolean = true,
+        soundOrange: Boolean = true,
+        soundRed: Boolean = true,
+    ) {
         // Démarrage : pas de son en entrant dans le vert la première fois.
         if (prev == null) return
+
+        val enabled = when (next) {
+            SpeedState.OK -> soundGreen
+            SpeedState.ATTENTION -> soundOrange
+            SpeedState.EXCES -> soundRed
+        }
+        if (!enabled) return
 
         val delta = rank(next) - rank(prev)
         val resId = when {
@@ -46,6 +63,11 @@ class AlertSoundPlayer(private val context: Context) {
             else -> return // même état : aucun son
         }
         play(resId)
+    }
+
+    /** Son d'alerte à l'entrée en zone de danger (si activé dans les options). */
+    fun playDangerAlert() {
+        play(R.raw.danger_alert)
     }
 
     private fun play(resId: Int) {

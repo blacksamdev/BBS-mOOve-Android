@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.blacksamdev.bbsmoove.data.DangerZoneRepository
 import com.blacksamdev.bbsmoove.data.RegionDownloadManager
 import com.blacksamdev.bbsmoove.data.RoadLookupRepository
+import com.blacksamdev.bbsmoove.data.Settings
+import com.blacksamdev.bbsmoove.data.SettingsRepository
 import com.blacksamdev.bbsmoove.model.DangerZoneInfo
 import com.blacksamdev.bbsmoove.model.GpsFix
 import com.blacksamdev.bbsmoove.model.NowPlaying
@@ -44,6 +46,14 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val audioDucking = AudioDuckingManager(application)
     private val soundPlayer = AlertSoundPlayer(application)
     private val regionDownloader = RegionDownloadManager(application)
+    private val settingsRepo = SettingsRepository(application)
+
+    /** Réglages courants, observés par l'UI (panneau d'options + HUD). */
+    val settings: StateFlow<Settings> = settingsRepo.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
+
+    /** Accès au repository pour le panneau d'options. */
+    fun settingsRepository(): SettingsRepository = settingsRepo
 
     /** État du téléchargement de région, observé par l'UI (bouton + progression). */
     val downloadState = regionDownloader.state
@@ -75,6 +85,11 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     /** Déclenché par le bouton "Télécharger ma région". */
     fun downloadCurrentRegion() {
         viewModelScope.launch {
+            // Option "téléchargement en WiFi uniquement"
+            if (settings.value.wifiOnlyDownload && !isOnWifi()) {
+                regionDownloader.reportError("WiFi requis (option activée)")
+                return@launch
+            }
             regionDownloader.download(currentRegionCode)
             // Bascule les lookups sur les vraies bases sans redémarrer l'app.
             if (regionDownloader.isAvailable(currentRegionCode)) {
@@ -84,6 +99,14 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                 dangerRepo.reload()
             }
         }
+    }
+
+    private fun isOnWifi(): Boolean {
+        val cm = getApplication<Application>()
+            .getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+            as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
     }
 
     /** Vrai si la base régionale est déjà présente (pour masquer le bouton). */
@@ -137,7 +160,10 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 launch(Dispatchers.Default) {
                     try {
-                        val danger = dangerRepo.lookup(fix.lat, fix.lon)
+                        val danger = dangerRepo.lookup(
+                            fix.lat, fix.lon,
+                            alertDistanceM = settings.value.dangerDistanceM,
+                        )
                         _dangerInfo.value = danger
                         handleDangerTransition(danger)
                     } catch (e: Exception) {
@@ -164,13 +190,23 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     ): HudUiState {
         val speed = fix?.speedKmh ?: 0
         val limit = road?.limitKmh ?: 50
-        val state = SpeedState.from(speed, limit)
+        val s = settings.value
+        val state = SpeedState.from(
+            speed, limit,
+            orangeAt = s.orangeThresholdKmh,
+            redAt = s.redThresholdKmh,
+        )
 
         if (lastState != state) {
             // Le player décide du son selon le SENS (montée = alerte,
-            // descente = son doux) et reste muet au tout premier passage
-            // (lastState == null, au démarrage).
-            soundPlayer.playTransition(prev = lastState, next = state)
+            // descente = son doux), filtré par les toggles des options,
+            // et reste muet au tout premier passage (démarrage).
+            soundPlayer.playTransition(
+                prev = lastState, next = state,
+                soundGreen = s.soundGreen,
+                soundOrange = s.soundOrange,
+                soundRed = s.soundRed,
+            )
         }
         lastState = state
 
@@ -190,11 +226,15 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /** Ducking audio synchronisé avec l'entrée/sortie de la zone de danger. */
+    /** Ducking audio + son d'alerte synchronisés avec l'entrée/sortie de zone. */
     private fun handleDangerTransition(danger: DangerZoneInfo?) {
         val alerting = danger?.shouldAlert == true
         if (alerting && !wasAlerting) {
             audioDucking.startDucking()
+            // Son d'alerte à l'ENTRÉE en zone (une seule fois), si activé.
+            if (settings.value.soundDanger) {
+                soundPlayer.playDangerAlert()
+            }
         } else if (!alerting && wasAlerting) {
             audioDucking.stopDucking()
         }

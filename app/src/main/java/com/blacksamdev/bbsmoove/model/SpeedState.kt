@@ -5,10 +5,12 @@ import androidx.compose.ui.graphics.Color
 /**
  * État du compteur selon le dépassement de la limite du tronçon.
  *
- * Règle validée :
- *   - speed <= limit            -> OK (vert)
- *   - limit < speed <= limit+3  -> ATTENTION (orange)
- *   - speed > limit+3           -> EXCES (rouge)
+ * Les seuils sont configurables dans les options (défauts : orange à +1,
+ * rouge à +4, avec la contrainte orange < rouge garantie par le
+ * SettingsRepository) :
+ *   - over < orangeAt            -> OK (vert)
+ *   - orangeAt <= over < redAt   -> ATTENTION (orange)
+ *   - over >= redAt              -> EXCES (rouge)
  */
 enum class SpeedState(val color: Color) {
     OK(Color(0xFF3FAE6B)),
@@ -16,23 +18,18 @@ enum class SpeedState(val color: Color) {
     EXCES(Color(0xFFD6463F));
 
     companion object {
-        fun from(speedKmh: Int, limitKmh: Int): SpeedState {
+        fun from(
+            speedKmh: Int,
+            limitKmh: Int,
+            orangeAt: Int = 1,
+            redAt: Int = 4,
+        ): SpeedState {
             val over = speedKmh - limitKmh
             return when {
-                over <= 0 -> OK
-                over <= 3 -> ATTENTION
-                else -> EXCES
+                over >= redAt -> EXCES
+                over >= orangeAt -> ATTENTION
+                else -> OK
             }
         }
     }
-}
-
-/**
- * Fréquences de bip distinctes par état, pour le retour sonore au changement
- * de couleur (un seul bip au moment de la transition, pas en continu).
- */
-fun SpeedState.alertToneHz(): Int = when (this) {
-    SpeedState.OK -> 660
-    SpeedState.ATTENTION -> 440
-    SpeedState.EXCES -> 320
 }

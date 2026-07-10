@@ -19,7 +19,8 @@ DEFAULT_SEARCH_RADIUS_M = 1200.0
 ALERT_TRIGGER_DISTANCE_M = 900.0
 
 
-def nearest_danger_zone(lat, lon, zones_json, radius_m=DEFAULT_SEARCH_RADIUS_M):
+def nearest_danger_zone(lat, lon, zones_json, radius_m=DEFAULT_SEARCH_RADIUS_M,
+                        alert_distance_m=ALERT_TRIGGER_DISTANCE_M):
     """
     zones_json : liste de dicts JSON, chacun avec :
         - "lat": float
@@ -50,7 +51,7 @@ def nearest_danger_zone(lat, lon, zones_json, radius_m=DEFAULT_SEARCH_RADIUS_M):
         {
             "distance_m": round(best_dist, 1),
             "limit": best.get("limit"),
-            "should_alert": best_dist <= ALERT_TRIGGER_DISTANCE_M,
+            "should_alert": best_dist <= alert_distance_m,
             "category": best.get("category", "danger"),
         }
     )

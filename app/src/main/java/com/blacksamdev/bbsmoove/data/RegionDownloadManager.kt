@@ -36,6 +36,11 @@ class RegionDownloadManager(private val context: Context) {
     )
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /** Signale une erreur décidée en amont (ex : option WiFi-only active). */
+    fun reportError(message: String) {
+        _state.value = State.Error(message)
+    }
+
     /** Force l'état à Ready (appelé au démarrage si la base est déjà là). */
     fun markReadyIfAvailable(regionCode: String) {
         if (isAvailable(regionCode)) {

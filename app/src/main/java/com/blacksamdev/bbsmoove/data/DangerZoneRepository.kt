@@ -68,8 +68,16 @@ class DangerZoneRepository(
     }
 
     /** À appeler depuis un contexte coroutine (Dispatchers.Default), pas le thread UI. */
-    fun lookup(lat: Double, lon: Double): DangerZoneInfo? {
-        val marginDeg = 0.012 // ~1.3km, un peu plus large que le rayon de recherche fin
+    /**
+     * @param alertDistanceM distance de déclenchement de l'alerte (réglable
+     *        dans les options, 900 m par défaut)
+     */
+    fun lookup(lat: Double, lon: Double, alertDistanceM: Int = 900): DangerZoneInfo? {
+        // Le rayon de recherche doit couvrir la distance d'alerte demandée
+        // (sinon avec un réglage à 2000 m on raterait des zones que le
+        // pré-filtre SQLite n'aurait pas remontées).
+        val searchM = maxOf(searchRadiusM, alertDistanceM + 300.0)
+        val marginDeg = searchM / 90_000.0 // ~1° ≈ 111 km -> marge large
         val candidates = zonesNear(lat, lon, marginDeg)
         if (candidates.isEmpty()) return null
 
@@ -87,7 +95,10 @@ class DangerZoneRepository(
         }
 
         val resultStr = python
-            .callAttr("nearest_danger_zone", lat, lon, zonesJson.toString(), searchRadiusM)
+            .callAttr(
+                "nearest_danger_zone", lat, lon, zonesJson.toString(),
+                searchM, alertDistanceM.toDouble(),
+            )
             ?.toString()
             ?: return null
 

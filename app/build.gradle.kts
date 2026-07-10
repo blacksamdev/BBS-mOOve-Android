@@ -114,5 +114,8 @@ dependencies {
     // SQLite local (extrait OSM + radars)
     implementation("androidx.sqlite:sqlite-ktx:2.4.0")
 
+    // Préférences utilisateur (panneau d'options)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
