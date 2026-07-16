@@ -190,20 +190,25 @@ private fun StepperRow(
             .fillMaxWidth()
             .background(BgPanel)
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = Bone, fontSize = 14.sp)
+        // weight(1f) : le label se compresse (ellipse) au lieu de pousser
+        // les boutons -/+ hors de l'écran quand il est long.
+        Text(
+            label,
+            color = Bone,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             StepperButton("−", enabled = canDecrement, onClick = onDecrement)
             Text(
-                text = "+$value $unit".let {
-                    // pour la distance (m), pas de préfixe "+"
-                    if (unit == "m") "$value $unit" else it
-                },
+                text = if (unit == "m") "$value $unit" else "+$value $unit",
                 color = Gold,
                 fontSize = 15.sp,
-                modifier = Modifier.width(90.dp),
+                modifier = Modifier.width(80.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
             StepperButton("+", enabled = canIncrement, onClick = onIncrement)
