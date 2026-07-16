@@ -4,8 +4,11 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -48,6 +51,9 @@ class SettingsRepository(private val context: Context) {
         val DANGER_DISTANCE = intPreferencesKey("danger_distance_m")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val MIRROR_MODE = booleanPreferencesKey("mirror_mode")
+        // Métadonnées de mise à jour des cartes (pas exposées dans Settings)
+        val DATA_VERSION = stringPreferencesKey("data_version")
+        val LAST_UPDATE_CHECK_MS = longPreferencesKey("last_update_check_ms")
     }
 
     /** Flux des réglages, avec la contrainte orange < rouge appliquée à la lecture. */
@@ -110,4 +116,20 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setMirrorMode(value: Boolean) =
         context.dataStore.edit { it[Keys.MIRROR_MODE] = value }
+
+    // --- Métadonnées de mise à jour des cartes ---
+
+    /** Version (published_at GitHub) des données actuellement installées, ou null. */
+    suspend fun dataVersion(): String? =
+        context.dataStore.data.first()[Keys.DATA_VERSION]
+
+    suspend fun setDataVersion(version: String) =
+        context.dataStore.edit { it[Keys.DATA_VERSION] = version }
+
+    /** Horodatage du dernier check de MAJ (pour le cooldown 24 h). */
+    suspend fun lastUpdateCheckMs(): Long =
+        context.dataStore.data.first()[Keys.LAST_UPDATE_CHECK_MS] ?: 0L
+
+    suspend fun setLastUpdateCheckMs(ms: Long) =
+        context.dataStore.edit { it[Keys.LAST_UPDATE_CHECK_MS] = ms }
 }

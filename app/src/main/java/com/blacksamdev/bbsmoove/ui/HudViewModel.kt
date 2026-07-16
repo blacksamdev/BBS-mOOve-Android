@@ -8,6 +8,7 @@ import com.blacksamdev.bbsmoove.data.RegionDownloadManager
 import com.blacksamdev.bbsmoove.data.RoadLookupRepository
 import com.blacksamdev.bbsmoove.data.Settings
 import com.blacksamdev.bbsmoove.data.SettingsRepository
+import com.blacksamdev.bbsmoove.data.UpdateChecker
 import com.blacksamdev.bbsmoove.model.DangerZoneInfo
 import com.blacksamdev.bbsmoove.model.GpsFix
 import com.blacksamdev.bbsmoove.model.NowPlaying
@@ -47,6 +48,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val soundPlayer = AlertSoundPlayer(application)
     private val regionDownloader = RegionDownloadManager(application)
     private val settingsRepo = SettingsRepository(application)
+    private val updateChecker = UpdateChecker()
 
     /** Réglages courants, observés par l'UI (panneau d'options + HUD). */
     val settings: StateFlow<Settings> = settingsRepo.settings
@@ -91,12 +93,74 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             regionDownloader.download(currentRegionCode)
-            // Bascule les lookups sur les vraies bases sans redémarrer l'app.
-            if (regionDownloader.isAvailable(currentRegionCode)) {
-                roadRepo.reload()
+            afterSuccessfulDownload()
+        }
+    }
+
+    /** Déclenché par la pastille "Mise à jour disponible". */
+    fun downloadUpdate() {
+        viewModelScope.launch {
+            if (settings.value.wifiOnlyDownload && !isOnWifi()) {
+                regionDownloader.reportError("WiFi requis (option activée)")
+                return@launch
             }
-            if (regionDownloader.isRadarsAvailable()) {
-                dangerRepo.reload()
+            regionDownloader.download(currentRegionCode, force = true)
+            afterSuccessfulDownload()
+        }
+    }
+
+    /** Recharge les bases et enregistre la version installée. */
+    private suspend fun afterSuccessfulDownload() {
+        if (regionDownloader.isAvailable(currentRegionCode)) {
+            roadRepo.reload()
+        }
+        if (regionDownloader.isRadarsAvailable()) {
+            dangerRepo.reload()
+        }
+        updateChecker.fetchRemoteVersion()?.let { settingsRepo.setDataVersion(it) }
+    }
+
+    /**
+     * Check quotidien de mise à jour des cartes (au démarrage, en fond).
+     * Règle décidée : si l'option WiFi-only est ACTIVE et qu'on est en WiFi,
+     * la mise à jour se télécharge automatiquement ; dans tous les autres
+     * cas, une pastille propose la mise à jour à l'utilisateur.
+     */
+    private fun maybeCheckForUpdate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Pas de bases locales = rien à mettre à jour (le bouton de
+                // premier téléchargement gère ce cas).
+                if (!regionDownloader.isAvailable(currentRegionCode)) return@launch
+
+                // Cooldown : au plus un check par 24 h.
+                val now = System.currentTimeMillis()
+                if (now - settingsRepo.lastUpdateCheckMs() < 24 * 3600 * 1000L) return@launch
+                settingsRepo.setLastUpdateCheckMs(now)
+
+                val remote = updateChecker.fetchRemoteVersion() ?: return@launch
+                val local = settingsRepo.dataVersion()
+
+                if (local == null) {
+                    // Bases présentes mais version inconnue (installées avant
+                    // cette fonctionnalité) : on adopte la version distante
+                    // comme référence, sans re-télécharger.
+                    settingsRepo.setDataVersion(remote)
+                    return@launch
+                }
+
+                if (remote != local) {
+                    if (settings.value.wifiOnlyDownload && isOnWifi()) {
+                        // Auto-update silencieux en WiFi (règle de Michael).
+                        regionDownloader.download(currentRegionCode, force = true)
+                        afterSuccessfulDownload()
+                    } else {
+                        regionDownloader.markUpdateAvailable()
+                    }
+                }
+            } catch (e: Exception) {
+                // Un échec de check ne doit jamais perturber l'app.
+                android.util.Log.e("BBSmOOve", "check MAJ échoué", e)
             }
         }
     }
@@ -133,6 +197,9 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         if (regionDownloader.isRadarsAvailable()) {
             dangerRepo.reload()
         }
+
+        // Check quotidien de mise à jour des cartes (en fond, non bloquant).
+        maybeCheckForUpdate()
 
         viewModelScope.launch {
             LocationTrackingService.gpsFix.collect { fix ->

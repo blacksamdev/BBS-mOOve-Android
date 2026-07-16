@@ -138,6 +138,7 @@ fun HudScreen(viewModel: HudViewModel) {
             RegionDownloadControl(
                 state = downloadState,
                 onDownload = { viewModel.downloadCurrentRegion() },
+                onUpdate = { viewModel.downloadUpdate() },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 8.dp, end = 8.dp),
@@ -181,6 +182,7 @@ fun HudScreen(viewModel: HudViewModel) {
 private fun RegionDownloadControl(
     state: RegionDownloadManager.State,
     onDownload: () -> Unit,
+    onUpdate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -209,6 +211,17 @@ private fun RegionDownloadControl(
                 color = StateRed,
                 fontSize = 11.sp,
                 modifier = modifier.clickable { onDownload() },
+            )
+        }
+        RegionDownloadManager.State.UpdateAvailable -> {
+            Text(
+                text = "🔄 Mise à jour des cartes",
+                color = Gold,
+                fontSize = 12.sp,
+                modifier = modifier
+                    .border(1.dp, GoldDim, RoundedCornerShape(4.dp))
+                    .clickable { onUpdate() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
         RegionDownloadManager.State.Idle -> {

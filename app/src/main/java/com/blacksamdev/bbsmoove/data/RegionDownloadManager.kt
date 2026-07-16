@@ -27,6 +27,13 @@ class RegionDownloadManager(private val context: Context) {
         data object Decompressing : State
         data class Ready(val regionCode: String) : State
         data class Error(val message: String) : State
+        /** Une mise à jour des cartes est disponible (pastille dans le HUD). */
+        data object UpdateAvailable : State
+    }
+
+    /** Affiche la pastille "mise à jour disponible" dans le HUD. */
+    fun markUpdateAvailable() {
+        _state.value = State.UpdateAvailable
     }
 
     private val _state = MutableStateFlow<State>(
@@ -70,14 +77,14 @@ class RegionDownloadManager(private val context: Context) {
      * Télécharge la région (routes) ET les radars (France entière), puis
      * décompresse. À appeler depuis une coroutine.
      *
-     * Les radars sont un seul petit fichier national ; la région est le gros
-     * morceau (~20 Mo). On télécharge d'abord la région (progression
-     * visible), puis les radars en fin de course.
+     * @param force re-télécharge même si les fichiers existent déjà (mise à
+     *        jour des cartes) ; le remplacement reste atomique (.tmp puis
+     *        rename), donc l'ancienne base sert jusqu'à la bascule.
      */
-    suspend fun download(regionCode: String) = withContext(Dispatchers.IO) {
+    suspend fun download(regionCode: String, force: Boolean = false) = withContext(Dispatchers.IO) {
         try {
             // 1. Routes de la région
-            if (!isAvailable(regionCode)) {
+            if (force || !isAvailable(regionCode)) {
                 val ok = downloadAndDecompress(
                     fileName = "$regionCode.db.gz",
                     finalFile = localDbFile(regionCode),
@@ -86,8 +93,8 @@ class RegionDownloadManager(private val context: Context) {
                 if (!ok) return@withContext
             }
 
-            // 2. Radars (France entière) — petit fichier, on le (re)prend si absent
-            if (!isRadarsAvailable()) {
+            // 2. Radars (France entière) — petit fichier
+            if (force || !isRadarsAvailable()) {
                 _state.value = State.Decompressing // libellé générique "préparation"
                 val ok = downloadAndDecompress(
                     fileName = "radars.db.gz",
