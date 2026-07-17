@@ -37,6 +37,8 @@ data class HudUiState(
     val avgSpeedKmh: Int = 0,
     val maxSpeedKmh: Int = 0,
     val tripDurationSec: Int = 0,
+    /** Id (base locale) du segment retenu par le map-matching — diagnostic. */
+    val segmentId: Long? = null,
 )
 
 class HudViewModel(application: Application) : AndroidViewModel(application) {
@@ -290,6 +292,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
             avgSpeedKmh = avg,
             maxSpeedKmh = maxSpeed,
             tripDurationSec = durationSec,
+            segmentId = road?.segmentId,
         )
     }
 
