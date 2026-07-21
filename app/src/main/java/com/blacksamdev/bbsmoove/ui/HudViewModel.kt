@@ -39,6 +39,8 @@ data class HudUiState(
     val tripDurationSec: Int = 0,
     /** Id (base locale) du segment retenu par le map-matching — diagnostic. */
     val segmentId: Long? = null,
+    /** Id OSM de la way retenue — permet d'ouvrir l'objet à corriger. */
+    val osmWayId: Long? = null,
 )
 
 class HudViewModel(application: Application) : AndroidViewModel(application) {
@@ -77,6 +79,17 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Base radars réellement chargée (diagnostic HUD). */
     fun radarDbSource(): String = dangerRepo.activeSource
+
+    /**
+     * False tant que l'accès aux notifications n'est pas accordé : sans lui,
+     * AUCUN lecteur (Groove, Spotify...) ne peut être détecté.
+     */
+    val mediaPermissionGranted = mediaMonitor.permissionGranted
+
+    /** À appeler quand l'app revient au premier plan (la permission a pu changer). */
+    fun onResume() {
+        mediaMonitor.refresh()
+    }
 
     private var lastState: SpeedState? = null
     private var lastSegmentId: Long? = null
@@ -293,6 +306,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
             maxSpeedKmh = maxSpeed,
             tripDurationSec = durationSec,
             segmentId = road?.segmentId,
+            osmWayId = road?.osmWayId,
         )
     }
 

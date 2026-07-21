@@ -20,6 +20,8 @@ import java.io.FileOutputStream
  */
 data class CandidateSegment(
     val id: Long,
+    /** Id OSM de la way : permet de pointer l'objet à corriger sur osm.org. */
+    val osmId: Long?,
     val points: List<Pair<Double, Double>>,
     val maxspeed: Int?,
     val junction: String?,
@@ -101,9 +103,18 @@ class RoadDb(private val context: Context) {
         val minLon = lon - marginDeg
         val maxLon = lon + marginDeg
 
+        // La colonne osm_id n'existe que dans les bases générées après
+        // l'ajout de cette fonctionnalité : on la lit défensivement pour
+        // rester compatible avec une base déjà installée.
+        val hasOsmId = tableHasColumn("road_segments", "osm_id")
+        val columns = if (hasOsmId) {
+            arrayOf("id", "points_json", "maxspeed", "junction", "is_agglomeration", "osm_id")
+        } else {
+            arrayOf("id", "points_json", "maxspeed", "junction", "is_agglomeration")
+        }
         val cursor = db.query(
             "road_segments",
-            arrayOf("id", "points_json", "maxspeed", "junction", "is_agglomeration"),
+            columns,
             "max_lat >= ? AND min_lat <= ? AND max_lon >= ? AND min_lon <= ?",
             arrayOf(minLat.toString(), maxLat.toString(), minLon.toString(), maxLon.toString()),
             null, null, null,
@@ -117,11 +128,14 @@ class RoadDb(private val context: Context) {
                 val maxspeed = if (it.isNull(2)) null else it.getInt(2)
                 val junction = if (it.isNull(3)) null else it.getString(3)
                 val isAgglo = it.getInt(4) == 1
+                val osmId = if (hasOsmId && !it.isNull(5)) it.getLong(5) else null
 
                 try {
                     val points = parsePointsJson(pointsJson)
                     if (points.size >= 2) {
-                        results.add(CandidateSegment(id, points, maxspeed, junction, isAgglo))
+                        results.add(
+                            CandidateSegment(id, osmId, points, maxspeed, junction, isAgglo)
+                        )
                     }
                 } catch (e: Exception) {
                     // Un segment au JSON corrompu est ignoré, pas fatal.
@@ -129,6 +143,20 @@ class RoadDb(private val context: Context) {
             }
         }
         return results
+    }
+
+    private fun tableHasColumn(table: String, column: String): Boolean {
+        return try {
+            db.rawQuery("PRAGMA table_info($table)", null).use { c ->
+                val nameIdx = c.getColumnIndex("name")
+                while (c.moveToNext()) {
+                    if (c.getString(nameIdx) == column) return true
+                }
+            }
+            false
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun parsePointsJson(json: String): List<Pair<Double, Double>> {

@@ -6,6 +6,8 @@ data class RoadInfo(
     val junction: Junction?,
     val distanceM: Double,
     val segmentId: Long?,
+    /** Id OSM de la way retenue (pour corriger la donnée sur osm.org). */
+    val osmWayId: Long? = null,
 )
 
 enum class Junction {
@@ -54,5 +56,6 @@ data class NowPlaying(
     val title: String,
     val artist: String,
     val isPlaying: Boolean,
-    val artworkUri: String? = null,
+    /** Pochette fournie par la MediaSession du lecteur (Groove, Spotify...). */
+    val artwork: android.graphics.Bitmap? = null,
 )

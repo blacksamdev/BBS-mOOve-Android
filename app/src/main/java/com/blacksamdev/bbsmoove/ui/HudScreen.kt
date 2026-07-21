@@ -22,9 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.provider.Settings
 import com.blacksamdev.bbsmoove.data.RegionDownloadManager
 import com.blacksamdev.bbsmoove.ui.theme.BgDeep
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
@@ -58,6 +61,19 @@ fun HudScreen(viewModel: HudViewModel) {
     DisposableEffect(settings.keepScreenOn) {
         view.keepScreenOn = settings.keepScreenOn
         onDispose { view.keepScreenOn = false }
+    }
+
+    // Au retour au premier plan (typiquement après être allé accorder l'accès
+    // aux notifications dans les réglages), on re-teste la permission média.
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.onResume()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Mode miroir (projection pare-brise) : tout le HUD est inversé
@@ -129,7 +145,8 @@ fun HudScreen(viewModel: HudViewModel) {
                 }
                 Text(
                     text = "v${com.blacksamdev.bbsmoove.BuildConfig.VERSION_NAME} · ${viewModel.roadDbSource()} · ${viewModel.radarDbSource()}" +
-                        (uiState.segmentId?.let { " · seg=$it" } ?: ""),
+                        (uiState.segmentId?.let { " · seg=$it" } ?: "") +
+                        (uiState.osmWayId?.let { " · osm=$it" } ?: ""),
                     color = BoneDim,
                     fontSize = 9.sp,
                 )
@@ -155,14 +172,49 @@ fun HudScreen(viewModel: HudViewModel) {
                     .clickable { showSettings = true }
                     .padding(start = 10.dp, top = 6.dp, end = 12.dp, bottom = 12.dp),
             )
+
+            // Sans l'accès aux notifications, AUCUN lecteur (Groove, Spotify…)
+            // ne peut être détecté. On le signale explicitement au lieu
+            // d'échouer en silence, avec un accès direct au bon écran système.
+            val mediaGranted by viewModel.mediaPermissionGranted.collectAsState()
+            if (!mediaGranted) {
+                val ctx = LocalContext.current
+                Text(
+                    text = "♪ Activer l'accès aux notifications\npour afficher la musique",
+                    color = GoldDim,
+                    fontSize = 10.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 26.dp)
+                        .border(1.dp, GoldDim, RoundedCornerShape(4.dp))
+                        .clickable {
+                            ctx.startActivity(
+                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
         }
 
         // Panneau d'options par-dessus tout, HORS du bloc miroir : on le
         // manipule téléphone en main, il doit rester à l'endroit.
         if (showSettings) {
             val repo = viewModel.settingsRepository()
+            val ctxOsm = LocalContext.current
             SettingsPanel(
                 settings = settings,
+                currentLimitKmh = uiState.limitKmh,
+                currentOsmWayId = uiState.osmWayId,
+                onOpenOsm = { wayId ->
+                    ctxOsm.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://www.openstreetmap.org/way/$wayId"),
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                },
                 onWifiOnly = { v -> scope.launch { repo.setWifiOnly(v) } },
                 onOrangeThreshold = { v -> scope.launch { repo.setOrangeThreshold(v) } },
                 onRedThreshold = { v -> scope.launch { repo.setRedThreshold(v) } },

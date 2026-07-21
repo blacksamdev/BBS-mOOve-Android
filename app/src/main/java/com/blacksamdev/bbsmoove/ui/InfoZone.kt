@@ -12,6 +12,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -68,12 +70,26 @@ private fun MediaPanel(nowPlaying: NowPlaying, isDucking: Boolean) {
     ) {
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
-                .size(46.dp)
+                .size(56.dp)
                 .background(BgPanel2, RoundedCornerShape(6.dp))
                 .border(1.dp, LineColor, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text("♪", color = GoldDim, fontSize = 18.sp)
+            // Pochette fournie par le lecteur (Groove, Spotify...) si dispo,
+            // sinon la note de musique en repli.
+            val art = nowPlaying.artwork
+            if (art != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = art.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(6.dp)),
+                )
+            } else {
+                Text("♪", color = GoldDim, fontSize = 18.sp)
+            }
         }
         Text(
             text = nowPlaying.title,

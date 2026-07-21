@@ -45,6 +45,9 @@ import com.blacksamdev.bbsmoove.ui.theme.StateRed
 @Composable
 fun SettingsPanel(
     settings: Settings,
+    currentLimitKmh: Int,
+    currentOsmWayId: Long?,
+    onOpenOsm: (Long) -> Unit,
     onWifiOnly: (Boolean) -> Unit,
     onOrangeThreshold: (Int) -> Unit,
     onRedThreshold: (Int) -> Unit,
@@ -130,6 +133,52 @@ fun SettingsPanel(
                 canIncrement = settings.dangerDistanceM < 2000,
             )
             ToggleRow("Son d'alerte", settings.soundDanger, onSoundDanger)
+
+            SectionTitle("Données cartographiques")
+            if (currentOsmWayId != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BgPanel)
+                        .clickable { onOpenOsm(currentOsmWayId) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "Limite ici : $currentLimitKmh km/h",
+                        color = Bone,
+                        fontSize = 14.sp,
+                    )
+                    Text(
+                        "Fausse ? Toucher pour ouvrir cette route sur OpenStreetMap et la corriger",
+                        color = Gold,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    Text(
+                        "way $currentOsmWayId",
+                        color = BoneDim,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            } else {
+                Text(
+                    "Route non identifiée pour l'instant (attendre un point GPS).",
+                    color = BoneDim,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BgPanel)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                )
+            }
+            Text(
+                "Les limites viennent d'OpenStreetMap, corrigeable par tous. " +
+                    "Une correction est reprise à la prochaine mise à jour des cartes.",
+                color = BoneDim,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            )
 
             Spacer(modifier = Modifier.padding(bottom = 24.dp))
         }

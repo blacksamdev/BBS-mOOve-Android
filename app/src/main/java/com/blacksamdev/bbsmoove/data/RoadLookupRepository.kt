@@ -73,11 +73,16 @@ class RoadLookupRepository(
         if (resultStr == "None") return null
 
         val obj = JSONObject(resultStr)
+        val segId = if (obj.isNull("id")) null else obj.getLong("id")
+        // On retrouve l'id OSM depuis les candidats : inutile de le faire
+        // transiter par le pont Python, il suffit de l'apparier sur l'id local.
+        val osmId = segId?.let { id -> candidates.firstOrNull { it.id == id }?.osmId }
         return RoadInfo(
             limitKmh = obj.getInt("limit"),
             junction = Junction.fromTag(obj.optString("junction", null)),
             distanceM = obj.getDouble("distance_m"),
-            segmentId = if (obj.isNull("id")) null else obj.getLong("id"),
+            segmentId = segId,
+            osmWayId = osmId,
         )
     }
 

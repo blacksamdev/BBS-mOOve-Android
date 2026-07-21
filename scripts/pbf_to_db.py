@@ -109,6 +109,7 @@ class RoadHandler:
 
         self.rows.append(
             (
+                w.id,  # id OSM de la way : permet de pointer l'objet à corriger
                 min(lats), max(lats), min(lons), max(lons),
                 json.dumps(points, separators=(",", ":")),
                 maxspeed,
@@ -137,6 +138,7 @@ def convert(input_path, output_path):
         """
         CREATE TABLE road_segments (
             id INTEGER PRIMARY KEY,
+            osm_id INTEGER,
             min_lat REAL, max_lat REAL,
             min_lon REAL, max_lon REAL,
             points_json TEXT,
@@ -149,8 +151,8 @@ def convert(input_path, output_path):
     conn.executemany(
         """
         INSERT INTO road_segments
-            (min_lat, max_lat, min_lon, max_lon, points_json, maxspeed, junction, is_agglomeration)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (osm_id, min_lat, max_lat, min_lon, max_lon, points_json, maxspeed, junction, is_agglomeration)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         handler.rows,
     )
