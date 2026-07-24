@@ -53,7 +53,10 @@ fun InfoZone(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(20.dp),
+            // Marge basse plus grande : le badge diagnostic (version, bases,
+            // seg/osm) est affiché en bas de l'écran et venait chevaucher la
+            // rangée de stats.
+            .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 30.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         if (nowPlaying != null) {
@@ -85,12 +88,26 @@ private fun MediaPanel(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        // Pochette dimensionnée d'après la place réelle : grande en paysage
-        // comme en portrait, sans jamais déborder.
-        val artSize = minOf(maxWidth * 0.55f, maxHeight * 0.52f).coerceIn(72.dp, 200.dp)
-        val titleSize = (artSize.value * 0.16f).coerceIn(13f, 22f)
-        val artistSize = (titleSize * 0.78f)
-        val btnSize = (artSize.value * 0.22f).coerceIn(20f, 34f)
+        // Les tailles de police dépendent de la hauteur du bloc, PAS de la
+        // pochette : sinon le calcul serait circulaire.
+        val titleSize = (maxHeight.value * 0.052f).coerceIn(12f, 20f)
+        val artistSize = titleSize * 0.78f
+        val btnSize = (maxHeight.value * 0.06f).coerceIn(18f, 30f)
+
+        // On RÉSERVE la hauteur du texte et des boutons, puis la pochette
+        // prend ce qui reste : ainsi rien ne déborde jamais sur les stats
+        // (le titre peut occuper 2 lignes).
+        val reservedDp =
+            titleSize * 2f * 1.3f +      // titre sur 2 lignes
+            artistSize * 1.35f +          // artiste
+            btnSize * 1.5f +              // rangée de boutons
+            (if (isDucking) 16f else 0f) + // mention ducking éventuelle
+            42f                           // marges internes cumulées
+
+        val artSize = minOf(
+            maxWidth * 0.58f,
+            (maxHeight.value - reservedDp).dp,
+        ).coerceIn(48.dp, 190.dp)
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -117,7 +134,7 @@ private fun MediaPanel(
                             .clip(RoundedCornerShape(8.dp)),
                     )
                 } else {
-                    Text("♪", color = GoldDim, fontSize = (artSize.value * 0.3f).sp)
+                    Text("♪", color = GoldDim, fontSize = (artSize.value * 0.32f).sp)
                 }
             }
             Text(
@@ -128,7 +145,7 @@ private fun MediaPanel(
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 12.dp, start = 8.dp, end = 8.dp),
+                modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp),
             )
             Text(
                 text = nowPlaying.artist,
@@ -144,7 +161,7 @@ private fun MediaPanel(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 6.dp),
             ) {
                 TransportButton("⏮", btnSize, onPrevious)
                 // L'icône reflète l'état réel de lecture.
