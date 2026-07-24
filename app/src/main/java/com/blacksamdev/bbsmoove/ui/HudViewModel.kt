@@ -91,6 +91,11 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         mediaMonitor.refresh()
     }
 
+    // --- Commandes de lecture (boutons du panneau média) ---
+    fun mediaPlayPause() = mediaMonitor.playPause()
+    fun mediaNext() = mediaMonitor.skipNext()
+    fun mediaPrevious() = mediaMonitor.skipPrevious()
+
     private var lastState: SpeedState? = null
     private var lastSegmentId: Long? = null
     private var wasAlerting = false

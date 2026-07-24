@@ -117,6 +117,28 @@ class MediaSessionMonitor(private val context: Context) {
         detachController()
     }
 
+    // --- Commandes de lecture ---
+    // Elles sont envoyées au lecteur actif (Groove, Spotify...) via la
+    // MediaSession : c'est la même API que les boutons du casque ou de
+    // l'écran de verrouillage.
+
+    fun playPause() {
+        val controller = trackedController ?: return
+        if (controller.playbackState?.state == PlaybackState.STATE_PLAYING) {
+            controller.transportControls.pause()
+        } else {
+            controller.transportControls.play()
+        }
+    }
+
+    fun skipNext() {
+        trackedController?.transportControls?.skipToNext()
+    }
+
+    fun skipPrevious() {
+        trackedController?.transportControls?.skipToPrevious()
+    }
+
     private fun detachController() {
         trackedController?.unregisterCallback(controllerCallback)
         trackedController = null

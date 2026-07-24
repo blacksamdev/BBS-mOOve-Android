@@ -21,10 +21,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.blacksamdev.bbsmoove.model.NowPlaying
 import com.blacksamdev.bbsmoove.ui.theme.Bone
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
 import com.blacksamdev.bbsmoove.ui.theme.BgPanel2
+import com.blacksamdev.bbsmoove.ui.theme.Gold
 import com.blacksamdev.bbsmoove.ui.theme.GoldDim
 import com.blacksamdev.bbsmoove.ui.theme.LineColor
 import com.blacksamdev.bbsmoove.ui.theme.StateRed
@@ -42,6 +45,9 @@ fun InfoZone(
     maxSpeedKmh: Int,
     tripDurationSec: Int,
     isDucking: Boolean,
+    onPlayPause: () -> Unit = {},
+    onNext: () -> Unit = {},
+    onPrevious: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -51,7 +57,16 @@ fun InfoZone(
         verticalArrangement = Arrangement.Center,
     ) {
         if (nowPlaying != null) {
-            MediaPanel(nowPlaying, isDucking)
+            // weight(1f) : le panneau média occupe TOUT l'espace disponible
+            // au-dessus des stats (au lieu d'un petit bloc centré).
+            MediaPanel(
+                nowPlaying = nowPlaying,
+                isDucking = isDucking,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                onPrevious = onPrevious,
+                modifier = Modifier.weight(1f),
+            )
         } else {
             GpsPanel(accuracyM)
         }
@@ -61,67 +76,107 @@ fun InfoZone(
 }
 
 @Composable
-private fun MediaPanel(nowPlaying: NowPlaying, isDucking: Boolean) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .size(56.dp)
-                .background(BgPanel2, RoundedCornerShape(6.dp))
-                .border(1.dp, LineColor, RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center,
+private fun MediaPanel(
+    nowPlaying: NowPlaying,
+    isDucking: Boolean,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        // Pochette dimensionnée d'après la place réelle : grande en paysage
+        // comme en portrait, sans jamais déborder.
+        val artSize = minOf(maxWidth * 0.55f, maxHeight * 0.52f).coerceIn(72.dp, 200.dp)
+        val titleSize = (artSize.value * 0.16f).coerceIn(13f, 22f)
+        val artistSize = (titleSize * 0.78f)
+        val btnSize = (artSize.value * 0.22f).coerceIn(20f, 34f)
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            // Pochette fournie par le lecteur (Groove, Spotify...) si dispo,
-            // sinon la note de musique en repli.
-            val art = nowPlaying.artwork
-            if (art != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = art.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(6.dp)),
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .size(artSize)
+                    .background(BgPanel2, RoundedCornerShape(8.dp))
+                    .border(1.dp, LineColor, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Pochette fournie par le lecteur (Groove, Spotify...) si dispo,
+                // sinon la note de musique en repli.
+                val art = nowPlaying.artwork
+                if (art != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = art.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier
+                            .size(artSize)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                } else {
+                    Text("♪", color = GoldDim, fontSize = (artSize.value * 0.3f).sp)
+                }
+            }
+            Text(
+                text = nowPlaying.title,
+                color = Bone,
+                fontWeight = FontWeight.Bold,
+                fontSize = titleSize.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 12.dp, start = 8.dp, end = 8.dp),
+            )
+            Text(
+                text = nowPlaying.artist,
+                color = BoneDim,
+                fontSize = artistSize.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp, start = 8.dp, end = 8.dp),
+            )
+            // Boutons RÉELLEMENT actifs : ils pilotent le lecteur via la
+            // MediaSession (comme les boutons du casque).
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 10.dp),
+            ) {
+                TransportButton("⏮", btnSize, onPrevious)
+                // L'icône reflète l'état réel de lecture.
+                TransportButton(if (nowPlaying.isPlaying) "⏸" else "▶", btnSize, onPlayPause)
+                TransportButton("⏭", btnSize, onNext)
+            }
+            if (isDucking) {
+                Text(
+                    text = "🔉 Volume musique réduit",
+                    color = StateRed,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-            } else {
-                Text("♪", color = GoldDim, fontSize = 18.sp)
             }
         }
-        Text(
-            text = nowPlaying.title,
-            color = Bone,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-        Text(
-            text = nowPlaying.artist,
-            color = BoneDim,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 2.dp),
-        )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            modifier = Modifier.padding(top = 4.dp),
-        ) {
-            Text("⏮", color = androidx.compose.ui.graphics.Color(0xFFC9A227), fontSize = 16.sp)
-            Text("⏸", color = androidx.compose.ui.graphics.Color(0xFFC9A227), fontSize = 16.sp)
-            Text("⏭", color = androidx.compose.ui.graphics.Color(0xFFC9A227), fontSize = 16.sp)
-        }
-        if (isDucking) {
-            Text(
-                text = "🔉 Volume musique réduit",
-                color = StateRed,
-                fontSize = 9.sp,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
     }
+}
+
+@Composable
+private fun TransportButton(symbol: String, sizeSp: Float, onClick: () -> Unit) {
+    Text(
+        text = symbol,
+        color = Gold,
+        fontSize = sizeSp.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            // Zone tactile large : on doit pouvoir viser sans quitter la route
+            // des yeux plus d'un instant.
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
 }
 
 @Composable

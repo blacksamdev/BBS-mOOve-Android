@@ -101,6 +101,9 @@ fun HudScreen(viewModel: HudViewModel) {
                             maxSpeedKmh = uiState.maxSpeedKmh,
                             tripDurationSec = uiState.tripDurationSec,
                             isDucking = isDucking,
+                            onPlayPause = { viewModel.mediaPlayPause() },
+                            onNext = { viewModel.mediaNext() },
+                            onPrevious = { viewModel.mediaPrevious() },
                         )
                         DangerOverlay(uiState.dangerInfo, isDucking)
                     }
@@ -121,6 +124,9 @@ fun HudScreen(viewModel: HudViewModel) {
                             maxSpeedKmh = uiState.maxSpeedKmh,
                             tripDurationSec = uiState.tripDurationSec,
                             isDucking = isDucking,
+                            onPlayPause = { viewModel.mediaPlayPause() },
+                            onNext = { viewModel.mediaNext() },
+                            onPrevious = { viewModel.mediaPrevious() },
                         )
                         DangerOverlay(uiState.dangerInfo, isDucking)
                     }
