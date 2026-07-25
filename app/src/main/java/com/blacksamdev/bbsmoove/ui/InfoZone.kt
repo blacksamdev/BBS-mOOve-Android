@@ -95,14 +95,16 @@ private fun MediaPanel(
         val btnSize = (maxHeight.value * 0.06f).coerceIn(18f, 30f)
 
         // On RÉSERVE la hauteur du texte et des boutons, puis la pochette
-        // prend ce qui reste : ainsi rien ne déborde jamais sur les stats
-        // (le titre peut occuper 2 lignes).
+        // prend ce qui reste : rien ne déborde jamais sur les stats. Le titre
+        // est sur UNE seule ligne (ellipse "…" si trop long) -> la hauteur du
+        // bloc est constante quel que soit le titre, donc les boutons ne se
+        // décalent jamais.
         val reservedDp =
-            titleSize * 2f * 1.3f +      // titre sur 2 lignes
-            artistSize * 1.35f +          // artiste
-            btnSize * 1.5f +              // rangée de boutons
+            titleSize * 1.35f +           // titre sur 1 ligne
+            artistSize * 1.35f +          // artiste (1 ligne)
+            btnSize * 1.6f +              // rangée de boutons
             (if (isDucking) 16f else 0f) + // mention ducking éventuelle
-            42f                           // marges internes cumulées
+            40f                           // marges internes cumulées
 
         val artSize = minOf(
             maxWidth * 0.58f,
@@ -143,7 +145,7 @@ private fun MediaPanel(
                 fontWeight = FontWeight.Bold,
                 fontSize = titleSize.sp,
                 textAlign = TextAlign.Center,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp),
             )
