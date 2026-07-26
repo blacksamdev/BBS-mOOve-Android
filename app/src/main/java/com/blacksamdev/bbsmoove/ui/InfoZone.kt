@@ -60,16 +60,22 @@ fun InfoZone(
         verticalArrangement = Arrangement.Center,
     ) {
         if (nowPlaying != null) {
-            // weight(1f) : le panneau média occupe TOUT l'espace disponible
-            // au-dessus des stats (au lieu d'un petit bloc centré).
-            MediaPanel(
-                nowPlaying = nowPlaying,
-                isDucking = isDucking,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                onPrevious = onPrevious,
+            // Le panneau média prend sa hauteur naturelle (contenu ancré en
+            // haut à l'intérieur), et le weight pousse les stats en bas tout
+            // en gardant le média groupé -- pas de boutons qui flottent vers
+            // les stats en paysage.
+            androidx.compose.foundation.layout.Box(
                 modifier = Modifier.weight(1f),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                MediaPanel(
+                    nowPlaying = nowPlaying,
+                    isDucking = isDucking,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    onPrevious = onPrevious,
+                )
+            }
         } else {
             GpsPanel(accuracyM)
         }
@@ -88,33 +94,33 @@ private fun MediaPanel(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        // Les tailles de police dépendent de la hauteur du bloc, PAS de la
-        // pochette : sinon le calcul serait circulaire.
-        val titleSize = (maxHeight.value * 0.052f).coerceIn(12f, 20f)
-        val artistSize = titleSize * 0.78f
-        val btnSize = (maxHeight.value * 0.06f).coerceIn(18f, 30f)
+        val availH = maxHeight.value
+        val availW = maxWidth.value
 
-        // On RÉSERVE la hauteur du texte et des boutons, puis la pochette
-        // prend ce qui reste : rien ne déborde jamais sur les stats. Le titre
-        // est sur UNE seule ligne (ellipse "…" si trop long) -> la hauteur du
-        // bloc est constante quel que soit le titre, donc les boutons ne se
-        // décalent jamais.
+        // Tailles de texte/boutons calées sur la LARGEUR du bloc (stable dans
+        // les deux orientations), pas sur la hauteur.
+        val titleSize = (availW * 0.055f).coerceIn(13f, 20f)
+        val artistSize = titleSize * 0.8f
+        val btnSize = (availW * 0.07f).coerceIn(20f, 30f)
+
+        // On réserve la hauteur du texte + des boutons ; la pochette prend le
+        // reste, bornée AUSSI par la largeur (sinon démesurée en paysage).
         val reservedDp =
-            titleSize * 1.35f +           // titre sur 1 ligne
-            artistSize * 1.35f +          // artiste (1 ligne)
-            btnSize * 1.6f +              // rangée de boutons
-            (if (isDucking) 16f else 0f) + // mention ducking éventuelle
-            40f                           // marges internes cumulées
+            titleSize * 1.35f +
+            artistSize * 1.35f +
+            btnSize * 1.7f +
+            (if (isDucking) 16f else 0f) +
+            36f
 
         val artSize = minOf(
-            maxWidth * 0.58f,
-            (maxHeight.value - reservedDp).dp,
-        ).coerceIn(48.dp, 190.dp)
+            (availW * 0.5f).dp,
+            (availH - reservedDp).dp,
+        ).coerceIn(40.dp, 180.dp)
 
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Top,
         ) {
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier
