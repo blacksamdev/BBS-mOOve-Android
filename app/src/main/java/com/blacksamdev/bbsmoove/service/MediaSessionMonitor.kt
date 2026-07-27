@@ -171,7 +171,7 @@ class MediaSessionMonitor(private val context: Context) {
             return
         }
         val metadata = controller.metadata
-        val title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "—"
+        val rawTitle = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "—"
         val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: "—"
@@ -182,10 +182,54 @@ class MediaSessionMonitor(private val context: Context) {
         val isPlaying = controller.playbackState?.state == PlaybackState.STATE_PLAYING
 
         _nowPlaying.value = NowPlaying(
-            title = title,
+            title = cleanTitle(rawTitle, artist),
             artist = artist,
             isPlaying = isPlaying,
             artwork = artwork,
         )
+    }
+
+    /**
+     * Retire l'artiste redondant en tête de titre. Les métadonnées YouTube
+     * (via Groove) donnent souvent un titre "Artiste - Titre", alors que
+     * l'artiste est déjà affiché juste en dessous -> doublon.
+     *
+     * Stratégie : on coupe sur le premier séparateur entouré d'espaces
+     * ( " - ", " – ", " — ", " : " ), MAIS seulement si la partie gauche
+     * contient le nom de l'artiste (insensible à la casse). Cela gère aussi
+     * le cas "Macklemore & Ryan Lewis - Thrift Shop" (artiste = "Macklemore")
+     * où le titre liste plusieurs artistes. Un titre sans ce motif, ou dont
+     * la gauche ne contient pas l'artiste (ex "Love - Hate"), reste intact,
+     * et on ne renvoie jamais un titre vide.
+     */
+    private fun cleanTitle(title: String, artist: String): String {
+        if (artist.isBlank() || artist == "—") return title
+        val t = title.trim()
+        val a = artist.trim()
+
+        // Cherche le premier séparateur entouré d'espaces (protège les mots
+        // composés type "Jean-Michel"). On se limite aux tirets, qui sont le
+        // format réel de YouTube ("Artiste - Titre") ; le deux-points est
+        // trop ambigu (sous-titres, "Vol : II"...) et laissé de côté.
+        val separators = listOf(" - ", " \u2013 ", " \u2014 ")
+        var cutIndex = -1
+        var sepLen = 0
+        for (sep in separators) {
+            val idx = t.indexOf(sep)
+            if (idx >= 0 && (cutIndex == -1 || idx < cutIndex)) {
+                cutIndex = idx
+                sepLen = sep.length
+            }
+        }
+        if (cutIndex < 0) return title
+
+        val left = t.substring(0, cutIndex)
+        val right = t.substring(cutIndex + sepLen).trim()
+
+        // On ne coupe que si la gauche correspond bien à l'artiste (sinon le
+        // tiret sépare deux mots du titre, pas artiste/titre).
+        if (!left.contains(a, ignoreCase = true)) return title
+
+        return right.ifBlank { title } // jamais de titre vide
     }
 }
