@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.blacksamdev.bbsmoove.data.DangerZoneRepository
+import com.blacksamdev.bbsmoove.data.RegionCatalog
 import com.blacksamdev.bbsmoove.data.RegionDownloadManager
 import com.blacksamdev.bbsmoove.data.RoadLookupRepository
 import com.blacksamdev.bbsmoove.data.Settings
@@ -53,6 +54,18 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val regionDownloader = RegionDownloadManager(application)
     private val settingsRepo = SettingsRepository(application)
     private val updateChecker = UpdateChecker()
+    private val regionCatalog = RegionCatalog(application)
+
+    // Région active : détectée dynamiquement d'après le GPS. Par défaut on
+    // reprend la première base déjà présente (session précédente) ; sinon
+    // elle sera fixée au premier point GPS.
+    @Volatile
+    private var currentRegionCode: String = regionDownloader.anyDownloadedRegionCode() ?: "bourgogne"
+
+    // Région détectée par le GPS mais dont la carte n'est pas installée :
+    // déclenche une pastille "Télécharger <région>". Null si à jour.
+    private val _missingRegion = MutableStateFlow<RegionCatalog.Region?>(null)
+    val missingRegion: StateFlow<RegionCatalog.Region?> = _missingRegion.asStateFlow()
 
     /** Réglages courants, observés par l'UI (panneau d'options + HUD). */
     val settings: StateFlow<Settings> = settingsRepo.settings
@@ -95,6 +108,29 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     fun mediaPlayPause() = mediaMonitor.playPause()
     fun mediaNext() = mediaMonitor.skipNext()
     fun mediaPrevious() = mediaMonitor.skipPrevious()
+
+    // --- Mode compact (bulle overlay) ---
+
+    /** Vrai si la permission "Afficher par-dessus les autres apps" est accordée. */
+    fun canDrawOverlay(): Boolean =
+        android.provider.Settings.canDrawOverlays(getApplication())
+
+    /**
+     * Passe en mode compact : démarre le service de bulle flottante.
+     * Le HUD (activité) sera mis en arrière-plan par le geste système de
+     * l'utilisateur (il lance Waze) ; la bulle, elle, reste au-dessus.
+     */
+    fun startOverlay() {
+        com.blacksamdev.bbsmoove.service.OverlayService.start(getApplication())
+    }
+
+    fun stopOverlay() {
+        com.blacksamdev.bbsmoove.service.OverlayService.stop(getApplication())
+    }
+
+    fun setOverlayContent(value: Int) {
+        viewModelScope.launch { settingsRepo.setOverlayContent(value) }
+    }
 
     private var lastState: SpeedState? = null
     private var lastSegmentId: Long? = null
@@ -193,6 +229,68 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         return caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
     }
 
+    // --- Détection automatique de région ---
+
+    private var lastRegionCheckMs = 0L
+    private var lastCheckedLat = 0.0
+    private var lastCheckedLon = 0.0
+
+    /**
+     * Détecte la région du point GPS (throttlé : au plus toutes les 10 s et
+     * si on a bougé de façon notable). Si la carte de la région détectée
+     * n'est pas installée, lève une pastille de proposition ; sinon, si on a
+     * changé de région et que sa carte EST là, on bascule dessus.
+     */
+    private fun checkRegion(lat: Double, lon: Double) {
+        val now = System.currentTimeMillis()
+        val moved = kotlin.math.hypot(lat - lastCheckedLat, lon - lastCheckedLon) > 0.01 // ~1km
+        if (now - lastRegionCheckMs < 10_000 && !moved) return
+        lastRegionCheckMs = now
+        lastCheckedLat = lat
+        lastCheckedLon = lon
+
+        val region = regionCatalog.detectRegion(lat, lon) ?: run {
+            // Hors métropole (ou trou de couverture bbox) : on ne signale rien.
+            _missingRegion.value = null
+            return
+        }
+
+        if (regionDownloader.isAvailable(region.code)) {
+            // Carte présente. Si on a changé de région active, on bascule.
+            if (region.code != currentRegionCode) {
+                currentRegionCode = region.code
+                viewModelScope.launch(Dispatchers.Default) {
+                    regionDownloader.switchTo(region.code)
+                    roadRepo.reload()
+                }
+            }
+            _missingRegion.value = null
+        } else {
+            // Carte absente : on propose de la télécharger (pastille).
+            _missingRegion.value = region
+        }
+    }
+
+    /** Déclenché par la pastille "Télécharger <région détectée>". */
+    fun downloadDetectedRegion() {
+        val region = _missingRegion.value ?: return
+        viewModelScope.launch {
+            if (settings.value.wifiOnlyDownload && !isOnWifi()) {
+                regionDownloader.reportError("WiFi requis (option activée)")
+                return@launch
+            }
+            regionDownloader.download(region.code)
+            if (regionDownloader.isAvailable(region.code)) {
+                currentRegionCode = region.code
+                regionDownloader.switchTo(region.code)
+                roadRepo.reload()
+                dangerRepo.reload()
+                _missingRegion.value = null
+                updateChecker.fetchRemoteVersion()?.let { settingsRepo.setDataVersion(it) }
+            }
+        }
+    }
+
     /** Vrai si la base régionale est déjà présente (pour masquer le bouton). */
     fun isRegionAvailable(): Boolean = regionDownloader.isAvailable(currentRegionCode)
 
@@ -210,6 +308,9 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
         // Si les bases ont déjà été téléchargées lors d'une session
         // précédente, on recharge les lookups dessus et on masque le bouton.
+        // On désigne aussi la région active pour RoadDb (multi-région).
+        regionDownloader.listDownloadedRegions().forEach { regionDownloader.switchTo(it) }
+        com.blacksamdev.bbsmoove.data.RoadDb.activeRegionCode = currentRegionCode
         regionDownloader.markReadyIfAvailable(currentRegionCode)
         if (regionDownloader.isAvailable(currentRegionCode)) {
             roadRepo.reload()
@@ -224,6 +325,10 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             LocationTrackingService.gpsFix.collect { fix ->
                 if (fix == null) return@collect
+                // Détection de région (throttlée) : si on entre dans une
+                // région dont la carte n'est pas installée, on lève une
+                // pastille de proposition de téléchargement.
+                checkRegion(fix.lat, fix.lon)
                 launch(Dispatchers.Default) {
                     try {
                         val road = roadRepo.lookup(
@@ -296,6 +401,15 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         lastState = state
+
+        // Publie l'état pour la bulle overlay (mode compact).
+        HudSnapshot.update(
+            speedKmh = speed,
+            limitKmh = limit,
+            state = state,
+            dangerActive = danger?.shouldAlert == true,
+            dangerDistanceM = danger?.distanceM?.toInt(),
+        )
 
         val avg = if (speedSamples > 0) (speedSum / speedSamples).toInt() else 0
         val durationSec = ((System.currentTimeMillis() - tripStartMs) / 1000).toInt()

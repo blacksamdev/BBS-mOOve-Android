@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Overlay flottant (mode compact bulle par-dessus Waze/Maps) : permission
+         spéciale, l'utilisateur doit l'accorder à la main dans les réglages. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".BbsMooveApp"
@@ -45,6 +48,13 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Service qui affiche la bulle flottante (mode compact).
+             Il ne fait pas de GPS lui-même (il lit HudSnapshot), donc pas de
+             foregroundServiceType particulier. -->
+        <service
+            android:name=".service.OverlayService"
+            android:exported="false" />
 
     </application>
 </manifest>

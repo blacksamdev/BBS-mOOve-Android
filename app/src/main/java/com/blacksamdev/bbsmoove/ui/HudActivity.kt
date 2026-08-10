@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import com.blacksamdev.bbsmoove.service.LocationTrackingService
+import com.blacksamdev.bbsmoove.service.OverlayService
 import com.blacksamdev.bbsmoove.ui.theme.BbsMooveTheme
 
 class HudActivity : ComponentActivity() {
@@ -67,7 +68,12 @@ class HudActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        stopService(Intent(this, LocationTrackingService::class.java))
+        // On ne coupe le GPS que si la bulle overlay n'est PAS active : en
+        // mode compact, l'activité peut être détruite par le système alors
+        // que la bulle continue d'afficher la vitesse -> le GPS doit rester.
+        if (!OverlayService.isRunning) {
+            stopService(Intent(this, LocationTrackingService::class.java))
+        }
         super.onDestroy()
     }
 }

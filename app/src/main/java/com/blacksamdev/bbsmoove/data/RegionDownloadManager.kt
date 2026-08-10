@@ -191,8 +191,56 @@ class RegionDownloadManager(private val context: Context) {
         return true
     }
 
-    /** Supprime la base d'une région (pour gestion du cache plus tard). */
+    /** Supprime la base d'une région. */
     fun delete(regionCode: String) {
         localDbFile(regionCode).delete()
+        touchOrder.remove(regionCode)
+    }
+
+    // --- Multi-région : bascule + cache LRU ---
+
+    /** Ordre d'utilisation des régions (la plus récemment utilisée en tête). */
+    private val touchOrder = ArrayDeque<String>()
+
+    /** Nombre max de régions gardées en cache (les plus anciennes sont purgées). */
+    private val maxCachedRegions = 3
+
+    /**
+     * Désigne [regionCode] comme région active (RoadDb chargera sa base) et
+     * met à jour le cache LRU : la région devient la plus récente, et si on
+     * dépasse la limite, la plus ancienne est supprimée du stockage.
+     */
+    fun switchTo(regionCode: String) {
+        RoadDb.activeRegionCode = regionCode
+        _state.value = State.Ready(regionCode)
+        // Mise à jour LRU.
+        touchOrder.remove(regionCode)
+        touchOrder.addFirst(regionCode)
+        pruneCache()
+    }
+
+    private fun pruneCache() {
+        while (touchOrder.size > maxCachedRegions) {
+            val oldest = touchOrder.removeLast()
+            // On ne supprime que le fichier routes ; radars.db est partagé.
+            localDbFile(oldest).delete()
+        }
+    }
+
+    /** Un code de région déjà téléchargé (pour initialiser la région active). */
+    fun anyDownloadedRegionCode(): String? {
+        if (!regionsDir.isDirectory) return null
+        return regionsDir.listFiles { f -> f.name.endsWith(".db") }
+            ?.firstOrNull { it.name != "radars.db" && it.length() > 10_000 }
+            ?.name?.removeSuffix(".db")
+    }
+
+    /** Liste des régions actuellement en cache local. */
+    fun listDownloadedRegions(): List<String> {
+        if (!regionsDir.isDirectory) return emptyList()
+        return regionsDir.listFiles { f -> f.name.endsWith(".db") }
+            ?.filter { it.name != "radars.db" && it.length() > 10_000 }
+            ?.map { it.name.removeSuffix(".db") }
+            ?: emptyList()
     }
 }

@@ -1,10 +1,16 @@
 name: Build department databases
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: "Régions à (re)construire, séparées par des espaces (ex: bourgogne rhone-alpes). Vide = TOUTES (long !)."
+        required: false
+        default: ""
   schedule:
     # Une fois par mois (le 1er à 3h du matin UTC) -- OSM bouge lentement
-    # pour les limites de vitesse, pas besoin de plus fréquent.
+    # pour les limites de vitesse, pas besoin de plus fréquent. Le cron
+    # reconstruit uniquement les régions DÉJÀ publiées (voir l'étape).
     - cron: "0 3 1 * *"
 
 permissions:
@@ -26,9 +32,28 @@ jobs:
       - name: Installer pyosmium
         run: pip install "osmium>=4.0,<5.0"
 
-      - name: Construire les .db départementaux
+      - name: Déterminer les régions à construire
+        id: which
+        run: |
+          if [ -n "${{ github.event.inputs.regions }}" ]; then
+            # Build manuel ciblé.
+            echo "regions=${{ github.event.inputs.regions }}" >> "$GITHUB_OUTPUT"
+          else
+            # Cron ou dispatch sans argument : on reconstruit UNIQUEMENT les
+            # régions déjà présentes dans la Release (mise à jour), pas les 22.
+            # Si la Release n'existe pas encore, on part sur bourgogne seule.
+            existing=$(curl -sL -H "User-Agent: BBS-mOOve" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/osm-data-latest" \
+              | grep -oP '"name":\s*"\K[a-z-]+(?=\.db\.gz")' | tr '\n' ' ')
+            if [ -z "$existing" ]; then existing="bourgogne"; fi
+            echo "regions=$existing" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Régions retenues : $(cat "$GITHUB_OUTPUT" | grep regions)"
+
+      - name: Construire les .db régionaux
         env:
           OUTPUT_DIR: dist
+          REGIONS: ${{ steps.which.outputs.regions }}
         run: python3 scripts/build_all_departments.py
 
       - name: Télécharger et convertir les radars (France entière)
@@ -54,4 +79,6 @@ jobs:
             (découpage par ancienne région française).
             Téléchargées à la demande par l'app BBS mOOve.
           files: dist/*.db.gz
+          # IMPORTANT : ne PAS effacer les assets existants -> on ajoute/écrase
+          # seulement les régions construites ce run, les autres restent.
           make_latest: true

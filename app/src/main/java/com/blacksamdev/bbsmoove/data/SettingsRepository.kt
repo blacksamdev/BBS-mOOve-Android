@@ -36,6 +36,11 @@ data class Settings(
     val dangerDistanceM: Int = 900,
     val keepScreenOn: Boolean = true,
     val mirrorMode: Boolean = false,
+    /** Contenu de la bulle overlay : 0=vitesse seule, 1=vitesse+limite, 2=+radar. */
+    val overlayContent: Int = 1,
+    /** Dernière position X de la bulle (px), -1 = pas encore placée. */
+    val overlayX: Int = -1,
+    val overlayY: Int = -1,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -51,6 +56,9 @@ class SettingsRepository(private val context: Context) {
         val DANGER_DISTANCE = intPreferencesKey("danger_distance_m")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val MIRROR_MODE = booleanPreferencesKey("mirror_mode")
+        val OVERLAY_CONTENT = intPreferencesKey("overlay_content")
+        val OVERLAY_X = intPreferencesKey("overlay_x")
+        val OVERLAY_Y = intPreferencesKey("overlay_y")
         // Métadonnées de mise à jour des cartes (pas exposées dans Settings)
         val DATA_VERSION = stringPreferencesKey("data_version")
         val LAST_UPDATE_CHECK_MS = longPreferencesKey("last_update_check_ms")
@@ -73,6 +81,9 @@ class SettingsRepository(private val context: Context) {
             dangerDistanceM = p[Keys.DANGER_DISTANCE] ?: 900,
             keepScreenOn = p[Keys.KEEP_SCREEN_ON] ?: true,
             mirrorMode = p[Keys.MIRROR_MODE] ?: false,
+            overlayContent = p[Keys.OVERLAY_CONTENT] ?: 1,
+            overlayX = p[Keys.OVERLAY_X] ?: -1,
+            overlayY = p[Keys.OVERLAY_Y] ?: -1,
         )
     }
 
@@ -116,6 +127,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setMirrorMode(value: Boolean) =
         context.dataStore.edit { it[Keys.MIRROR_MODE] = value }
+
+    suspend fun setOverlayContent(value: Int) =
+        context.dataStore.edit { it[Keys.OVERLAY_CONTENT] = value.coerceIn(0, 2) }
+
+    /** Mémorise la position de la bulle après un déplacement. */
+    suspend fun setOverlayPosition(x: Int, y: Int) =
+        context.dataStore.edit { it[Keys.OVERLAY_X] = x; it[Keys.OVERLAY_Y] = y }
 
     // --- Métadonnées de mise à jour des cartes ---
 

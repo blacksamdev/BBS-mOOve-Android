@@ -1,0 +1,115 @@
+{
+  "_comment": "Anciennes régions françaises (découpage Geofabrik). bbox = [min_lat, max_lat, min_lon, max_lon]. Les noms sont EXACTEMENT ceux des fichiers Geofabrik (europe/france/<name>-latest.osm.pbf). neighbors = régions limitrophes (pour la pastille d'anticipation).",
+  "regions": {
+    "alsace": {
+      "name": "Alsace",
+      "bbox": [47.42, 49.08, 6.85, 8.24],
+      "neighbors": ["lorraine", "franche-comte"]
+    },
+    "aquitaine": {
+      "name": "Aquitaine",
+      "bbox": [42.77, 45.72, -1.79, 1.47],
+      "neighbors": ["poitou-charentes", "limousin", "midi-pyrenees", "languedoc-roussillon"]
+    },
+    "auvergne": {
+      "name": "Auvergne",
+      "bbox": [44.60, 46.80, 2.05, 4.51],
+      "neighbors": ["limousin", "centre", "bourgogne", "rhone-alpes", "languedoc-roussillon", "midi-pyrenees"]
+    },
+    "basse-normandie": {
+      "name": "Basse-Normandie",
+      "bbox": [48.18, 49.98, -1.95, 0.96],
+      "neighbors": ["haute-normandie", "bretagne", "pays-de-la-loire", "centre", "picardie"]
+    },
+    "bourgogne": {
+      "name": "Bourgogne",
+      "bbox": [46.15, 48.40, 2.85, 5.52],
+      "neighbors": ["franche-comte", "champagne-ardenne", "centre", "auvergne", "rhone-alpes", "ile-de-france"]
+    },
+    "bretagne": {
+      "name": "Bretagne",
+      "bbox": [47.27, 48.90, -5.15, -1.01],
+      "neighbors": ["basse-normandie", "pays-de-la-loire"]
+    },
+    "centre": {
+      "name": "Centre",
+      "bbox": [46.35, 48.94, 0.05, 3.13],
+      "neighbors": ["ile-de-france", "bourgogne", "auvergne", "limousin", "poitou-charentes", "pays-de-la-loire", "basse-normandie", "haute-normandie", "picardie"]
+    },
+    "champagne-ardenne": {
+      "name": "Champagne-Ardenne",
+      "bbox": [47.57, 50.17, 3.38, 5.94],
+      "neighbors": ["picardie", "ile-de-france", "bourgogne", "franche-comte", "lorraine"]
+    },
+    "corse": {
+      "name": "Corse",
+      "bbox": [41.33, 43.03, 8.53, 9.56],
+      "neighbors": []
+    },
+    "franche-comte": {
+      "name": "Franche-Comté",
+      "bbox": [46.26, 48.05, 5.28, 7.19],
+      "neighbors": ["alsace", "lorraine", "champagne-ardenne", "bourgogne", "rhone-alpes"]
+    },
+    "haute-normandie": {
+      "name": "Haute-Normandie",
+      "bbox": [48.62, 50.07, 0.06, 1.81],
+      "neighbors": ["basse-normandie", "picardie", "ile-de-france", "centre"]
+    },
+    "ile-de-france": {
+      "name": "Île-de-France",
+      "bbox": [48.12, 49.24, 1.44, 3.56],
+      "neighbors": ["haute-normandie", "picardie", "champagne-ardenne", "bourgogne", "centre"]
+    },
+    "languedoc-roussillon": {
+      "name": "Languedoc-Roussillon",
+      "bbox": [42.33, 44.97, 1.68, 4.85],
+      "neighbors": ["midi-pyrenees", "auvergne", "rhone-alpes", "provence-alpes-cote-d-azur", "aquitaine"]
+    },
+    "limousin": {
+      "name": "Limousin",
+      "bbox": [44.92, 46.44, 0.60, 2.61],
+      "neighbors": ["poitou-charentes", "centre", "auvergne", "midi-pyrenees", "aquitaine"]
+    },
+    "lorraine": {
+      "name": "Lorraine",
+      "bbox": [47.78, 49.73, 4.89, 7.64],
+      "neighbors": ["alsace", "franche-comte", "champagne-ardenne"]
+    },
+    "midi-pyrenees": {
+      "name": "Midi-Pyrénées",
+      "bbox": [42.57, 45.05, 0.07, 3.46],
+      "neighbors": ["aquitaine", "limousin", "auvergne", "languedoc-roussillon"]
+    },
+    "nord-pas-de-calais": {
+      "name": "Nord-Pas-de-Calais",
+      "bbox": [49.95, 51.09, 1.55, 4.23],
+      "neighbors": ["picardie"]
+    },
+    "pays-de-la-loire": {
+      "name": "Pays de la Loire",
+      "bbox": [46.27, 48.57, -2.56, 0.92],
+      "neighbors": ["bretagne", "basse-normandie", "centre", "poitou-charentes"]
+    },
+    "picardie": {
+      "name": "Picardie",
+      "bbox": [48.83, 50.37, 1.38, 4.25],
+      "neighbors": ["nord-pas-de-calais", "haute-normandie", "ile-de-france", "champagne-ardenne", "basse-normandie", "centre"]
+    },
+    "poitou-charentes": {
+      "name": "Poitou-Charentes",
+      "bbox": [45.03, 47.17, -1.57, 1.21],
+      "neighbors": ["pays-de-la-loire", "centre", "limousin", "aquitaine"]
+    },
+    "provence-alpes-cote-d-azur": {
+      "name": "Provence-Alpes-Côte d'Azur",
+      "bbox": [42.98, 45.13, 4.23, 7.72],
+      "neighbors": ["rhone-alpes", "languedoc-roussillon"]
+    },
+    "rhone-alpes": {
+      "name": "Rhône-Alpes",
+      "bbox": [44.11, 46.52, 3.69, 7.19],
+      "neighbors": ["bourgogne", "franche-comte", "auvergne", "languedoc-roussillon", "provence-alpes-cote-d-azur"]
+    }
+  }
+}

@@ -168,6 +168,23 @@ fun HudScreen(viewModel: HudViewModel) {
                     .padding(top = 8.dp, end = 8.dp),
             )
 
+            // Pastille "nouvelle région détectée" : proposée quand on entre
+            // dans une région dont la carte n'est pas installée.
+            val missingRegion by viewModel.missingRegion.collectAsState()
+            missingRegion?.let { region ->
+                Text(
+                    text = "⬇ Carte ${region.displayName} ?",
+                    color = Gold,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp)
+                        .border(1.dp, GoldDim, RoundedCornerShape(4.dp))
+                        .clickable { viewModel.downloadDetectedRegion() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+
             // Bouton d'options discret (coin haut-gauche).
             Text(
                 text = "⚙",
@@ -177,6 +194,37 @@ fun HudScreen(viewModel: HudViewModel) {
                     .align(Alignment.TopStart)
                     .clickable { showSettings = true }
                     .padding(start = 10.dp, top = 6.dp, end = 12.dp, bottom = 12.dp),
+            )
+
+            // Bouton "mode compact" (bulle flottante) : sous le bouton options.
+            val ctxOverlay = LocalContext.current
+            Text(
+                text = "❏",
+                color = BoneDim,
+                fontSize = 18.sp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 10.dp, top = 40.dp, end = 12.dp, bottom = 12.dp)
+                    .clickable {
+                        if (viewModel.canDrawOverlay()) {
+                            viewModel.startOverlay()
+                            // On renvoie l'utilisateur à l'accueil : la bulle
+                            // reste au-dessus, il peut lancer Waze.
+                            ctxOverlay.startActivity(
+                                Intent(Intent.ACTION_MAIN)
+                                    .addCategory(Intent.CATEGORY_HOME)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } else {
+                            // Demande la permission spéciale overlay.
+                            ctxOverlay.startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${ctxOverlay.packageName}"),
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    },
             )
 
             // Sans l'accès aux notifications, AUCUN lecteur (Groove, Spotify…)
@@ -231,6 +279,7 @@ fun HudScreen(viewModel: HudViewModel) {
                 onDangerDistance = { v -> scope.launch { repo.setDangerDistance(v) } },
                 onKeepScreenOn = { v -> scope.launch { repo.setKeepScreenOn(v) } },
                 onMirrorMode = { v -> scope.launch { repo.setMirrorMode(v) } },
+                onOverlayContent = { v -> viewModel.setOverlayContent(v) },
                 onClose = { showSettings = false },
             )
         }

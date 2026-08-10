@@ -30,6 +30,16 @@ data class CandidateSegment(
 
 class RoadDb(private val context: Context) {
 
+    companion object {
+        /**
+         * Code de la région à charger en priorité (ex "bourgogne", "rhone-alpes").
+         * Fixé par le RegionDownloadManager quand on bascule de région. Null =
+         * on prend la première base trouvée (comportement mono-région d'origine).
+         */
+        @Volatile
+        var activeRegionCode: String? = null
+    }
+
     @Volatile
     private var db: SQLiteDatabase = openBest(context)
 
@@ -45,13 +55,24 @@ class RoadDb(private val context: Context) {
      *     pour que l'app fonctionne même avant tout téléchargement.
      */
     private fun openBest(context: Context): SQLiteDatabase {
-        val downloaded = firstDownloadedRegion(context)
+        val downloaded = activeRegionFile(context) ?: firstDownloadedRegion(context)
         if (downloaded != null) {
             activeSource = downloaded.name
             return SQLiteDatabase.openDatabase(downloaded.path, null, SQLiteDatabase.OPEN_READONLY)
         }
         activeSource = "asset(bidon)"
         return openFromAssets(context, "osm_speed.db")
+    }
+
+    /**
+     * Base de la région ACTIVE (désignée par le ViewModel via
+     * [activeRegionCode]). Avec plusieurs régions en cache, il faut charger
+     * la bonne — pas simplement la première trouvée.
+     */
+    private fun activeRegionFile(context: Context): File? {
+        val code = activeRegionCode ?: return null
+        val f = File(File(context.filesDir, "regions"), "$code.db")
+        return if (f.exists() && f.length() > 10_000) f else null
     }
 
     /** Première base régionale téléchargée trouvée dans filesDir/regions/. */

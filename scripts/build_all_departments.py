@@ -133,10 +133,38 @@ def _download_curl(url, dest):
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    departments = json.loads((SCRIPT_DIR / "departments.json").read_text())
+
+    # On lit le catalogue complet des régions (regions.json). Le workflow
+    # peut demander de ne construire qu'un sous-ensemble via la variable
+    # d'environnement REGIONS (liste séparée par des espaces ou virgules),
+    # pour éviter de rebâtir les 22 régions à chaque run (trop long/lourd).
+    catalog_path = SCRIPT_DIR / "regions.json"
+    if catalog_path.exists():
+        catalog = json.loads(catalog_path.read_text())["regions"]
+        # code Geofabrik = clé ; on construit path = code (Geofabrik range par
+        # ancienne région directement sous europe/france/<code>).
+        all_regions = {code: {"name": info["name"], "path": code}
+                       for code, info in catalog.items()}
+    else:
+        # Repli sur l'ancien fichier mono-région.
+        all_regions = json.loads((SCRIPT_DIR / "departments.json").read_text())
+
+    filter_env = os.environ.get("REGIONS", "").replace(",", " ").split()
+    if filter_env:
+        regions = {c: all_regions[c] for c in filter_env if c in all_regions}
+        unknown = [c for c in filter_env if c not in all_regions]
+        if unknown:
+            print(f"AVERTISSEMENT : régions inconnues ignorées : {unknown}")
+        if not regions:
+            print(f"Aucune région valide dans REGIONS={filter_env}")
+            sys.exit(1)
+    else:
+        regions = all_regions
+
+    print(f"Régions à construire : {list(regions.keys())}")
 
     summary = []
-    for code, info in departments.items():
+    for code, info in regions.items():
         print(f"\n=== Extrait {code} ({info['name']}) ===")
         pbf_path = OUT_DIR / f"{code}.osm.pbf"
         db_path = OUT_DIR / f"{code}.db"
@@ -159,8 +187,6 @@ def main():
             summary.append((code, "convert_failed", 0))
             continue
 
-        # On supprime le .pbf intermédiaire (volumineux), on ne garde que le
-        # .db.gz (compressé) pour le téléchargement par l'app.
         pbf_path.unlink(missing_ok=True)
 
         gz_path = Path(str(db_path) + ".gz")
@@ -169,7 +195,6 @@ def main():
             summary.append((code, "gz_missing", 0))
             continue
 
-        # On retire le .db non compressé : seul le .gz est publié/téléchargé
         db_path.unlink(missing_ok=True)
 
         size_mb = gz_path.stat().st_size / 1e6
@@ -180,7 +205,6 @@ def main():
     for code, status, size in summary:
         print(f"  {code}: {status} ({size:.1f} Mo)" if status == "ok" else f"  {code}: {status}")
 
-    # Échoue le job si AUCUN département n'a réussi
     if not any(s == "ok" for _, s, _ in summary):
         sys.exit(1)
 

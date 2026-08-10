@@ -58,6 +58,7 @@ fun SettingsPanel(
     onDangerDistance: (Int) -> Unit,
     onKeepScreenOn: (Boolean) -> Unit,
     onMirrorMode: (Boolean) -> Unit,
+    onOverlayContent: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
     Box(
@@ -175,6 +176,51 @@ fun SettingsPanel(
             Text(
                 "Les limites viennent d'OpenStreetMap, corrigeable par tous. " +
                     "Une correction est reprise à la prochaine mise à jour des cartes.",
+                color = BoneDim,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+
+            SectionTitle("Bulle flottante (mode compact)")
+            Text(
+                "Contenu de la bulle affichée par-dessus les autres apps (Waze…).",
+                color = BoneDim,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(BgPanel)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                val options = listOf(
+                    0 to "Vitesse seule",
+                    1 to "Vitesse + limite",
+                    2 to "Vitesse + limite + radar",
+                )
+                options.forEach { (value, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOverlayContent(value) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (settings.overlayContent == value) "◉" else "○",
+                            color = if (settings.overlayContent == value) Gold else BoneDim,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(end = 10.dp),
+                        )
+                        Text(label, color = Bone, fontSize = 14.sp)
+                    }
+                }
+            }
+            Text(
+                "Depuis le HUD, touchez ❏ pour réduire en bulle. Un appui long " +
+                    "sur la bulle (petite vibration) permet de la déplacer ; " +
+                    "un appui court rouvre l'écran complet.",
                 color = BoneDim,
                 fontSize = 10.sp,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
