@@ -17,6 +17,7 @@ import com.blacksamdev.bbsmoove.model.RoadInfo
 import com.blacksamdev.bbsmoove.model.SpeedState
 import com.blacksamdev.bbsmoove.service.AlertSoundPlayer
 import com.blacksamdev.bbsmoove.service.AudioDuckingManager
+import com.blacksamdev.bbsmoove.service.HudSnapshot
 import com.blacksamdev.bbsmoove.service.LocationTrackingService
 import com.blacksamdev.bbsmoove.service.MediaSessionMonitor
 import kotlinx.coroutines.Dispatchers
@@ -76,9 +77,6 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
     /** État du téléchargement de région, observé par l'UI (bouton + progression). */
     val downloadState = regionDownloader.state
-
-    // Région fixée pour ce premier jet (détection auto à venir).
-    private val currentRegionCode = "bourgogne"
 
     private val _roadInfo = MutableStateFlow<RoadInfo?>(null)
     private val _dangerInfo = MutableStateFlow<DangerZoneInfo?>(null)

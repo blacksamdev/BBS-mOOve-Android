@@ -22,7 +22,8 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import com.blacksamdev.bbsmoove.data.SettingsRepository
 import com.blacksamdev.bbsmoove.model.SpeedState
-import com.blacksamdev.bbsmoove.ui.HudActivityimport kotlinx.coroutines.CoroutineScope
+import com.blacksamdev.bbsmoove.ui.HudActivity
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
