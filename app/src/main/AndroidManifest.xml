@@ -11,6 +11,9 @@
     <!-- Overlay flottant (mode compact bulle par-dessus Waze/Maps) : permission
          spéciale, l'utilisateur doit l'accorder à la main dans les réglages. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Vibration de confirmation de l'appui long sur la bulle. Sans cette
+         permission, l'appel levait une SecurityException et l'app plantait. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".BbsMooveApp"

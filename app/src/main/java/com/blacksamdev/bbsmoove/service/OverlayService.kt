@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -216,6 +217,13 @@ class OverlayService : Service() {
                     dragging = false
                     true
                 }
+                MotionEvent.ACTION_CANCEL -> {
+                    // Geste interrompu par le système : on annule proprement
+                    // l'appui long en attente, sans tap ni déplacement.
+                    bubble.removeCallbacks(longPressRunnable)
+                    dragging = false
+                    true
+                }
                 else -> false
             }
         }
@@ -229,12 +237,23 @@ class OverlayService : Service() {
         stopSelf() // on quitte le mode compact
     }
 
+    /**
+     * Petite vibration de confirmation de l'appui long. Ne doit JAMAIS faire
+     * planter l'app : sans la permission VIBRATE, Vibrator lève une
+     * SecurityException qui tuait le processus (et donc la bulle). On se
+     * replie sur le retour haptique de la vue, qui ne demande aucune
+     * permission.
+     */
     private fun vibrate() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(40)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(40)
+            }
+        } catch (e: Exception) {
+            bubble.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
     }
 
