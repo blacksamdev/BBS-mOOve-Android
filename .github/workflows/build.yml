@@ -1,5 +1,10 @@
 name: Build debug APK
 
+# NB : le nom du workflow, celui du fichier (build.yml) et celui de
+# l'artefact (bbs-moove-debug-apk) sont gardés tels quels pour ne pas casser
+# le lien nightly.link. L'APK produit est pourtant désormais une version
+# RELEASE (non debuggable), signée avec la clé privée de BBS mOOve.
+
 on:
   push:
     branches: [ "main" ]
@@ -30,12 +35,33 @@ jobs:
       - name: Rendre gradlew exécutable
         run: chmod +x ./gradlew
 
-      - name: Build APK debug
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Reconstituer la clé de signature privée
+        env:
+          BBS_KEYSTORE_BASE64: ${{ secrets.BBS_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$BBS_KEYSTORE_BASE64" ]; then
+            echo "::error::Secret BBS_KEYSTORE_BASE64 absent : ajoute les 4 secrets BBS_* dans Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          # La clé ne vit que le temps du job, dans le dossier temporaire du runner.
+          echo "$BBS_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/bbs-moove-release.jks"
+          echo "BBS_KEYSTORE_PATH=$RUNNER_TEMP/bbs-moove-release.jks" >> "$GITHUB_ENV"
+
+      - name: Build APK release signé
+        env:
+          BBS_KEYSTORE_PASSWORD: ${{ secrets.BBS_KEYSTORE_PASSWORD }}
+          BBS_KEY_ALIAS: ${{ secrets.BBS_KEY_ALIAS }}
+          BBS_KEY_PASSWORD: ${{ secrets.BBS_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Effacer la clé du runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/bbs-moove-release.jks"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: bbs-moove-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 90

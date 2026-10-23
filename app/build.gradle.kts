@@ -4,21 +4,26 @@ plugins {
     id("com.chaquo.python")
 }
 
+// Clé de signature PRIVÉE de BBS mOOve.
+// Elle n'est jamais dans le dépôt : en CI, le workflow la reconstitue depuis
+// les secrets GitHub (BBS_KEYSTORE_BASE64 -> fichier temporaire) et passe son
+// chemin + mots de passe par variables d'environnement.
+// Sans ces variables (build local sur un autre poste), l'APK release sort
+// simplement non signé : aucune clé ni mot de passe n'est jamais committé.
+val releaseKeystorePath: String? = System.getenv("BBS_KEYSTORE_PATH")
+
 android {
     namespace = "com.blacksamdev.bbsmoove"
     compileSdk = 35
 
     signingConfigs {
-        getByName("debug") {
-            // Keystore fixe (committé dans app/keystore/debug.keystore), pas le
-            // ~/.android/debug.keystore aléatoire généré par poste -- sinon
-            // chaque run CI produirait une signature différente et casserait
-            // l'installation incrémentale ("mise à jour" au lieu de
-            // "désinstaller puis réinstaller") d'un build nightly à l'autre.
-            storeFile = file("keystore/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (releaseKeystorePath != null) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("BBS_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("BBS_KEY_ALIAS")
+                keyPassword = System.getenv("BBS_KEY_PASSWORD")
+            }
         }
     }
 
@@ -51,11 +56,19 @@ android {
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("debug")
+            // Builds locaux uniquement : signés avec la clé de debug générée
+            // par Android Studio sur le poste (~/.android/debug.keystore).
+            // L'ancienne clé debug.keystore committée (mot de passe "android"
+            // public) a été retirée du dépôt.
         }
         release {
-            isMinifyEnabled = true
+            // Pas de minification : R8 risquerait de casser Chaquopy et les
+            // appels par réflexion, pour un gain de taille négligeable ici.
+            isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (releaseKeystorePath != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

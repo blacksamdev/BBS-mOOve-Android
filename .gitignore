@@ -14,5 +14,9 @@ local.properties
 # Logs
 *.log
 
-# NB : app/keystore/debug.keystore est volontairement PAS ignoré --
-# c'est le keystore fixe partagé entre tous les builds CI (cf. build.gradle.kts).
+# Clés de signature : JAMAIS dans le dépôt.
+# La clé privée de release vit hors du projet (~/.bbs-keys/) et dans les
+# secrets GitHub Actions ; l'ancienne debug.keystore committée a été retirée.
+*.jks
+*.keystore
+*.b64
