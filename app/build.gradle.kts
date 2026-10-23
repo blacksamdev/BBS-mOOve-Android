@@ -124,6 +124,13 @@ dependencies {
     // Localisation
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
+    // play-services-location tire en dépendance une très vieille version de
+    // androidx.fragment (< 1.3), qui ne relaie pas correctement les résultats
+    // de demande de permission (registerForActivityResult). Le contrôle lint
+    // des builds release le signale comme erreur fatale : on force une version
+    // récente.
+    implementation("androidx.fragment:fragment-ktx:1.8.3")
+
     // SQLite local (extrait OSM + radars)
     implementation("androidx.sqlite:sqlite-ktx:2.4.0")
 
