@@ -50,6 +50,8 @@ data class ObdReading(
     val tankLiters: Double = 0.0,
     val rpm: Int? = null,
     val coolantC: Int? = null,
+    /** Valeurs brutes lues au dernier cycle, affichées dans les options pour le diagnostic. */
+    val debug: String? = null,
 )
 
 /** Appareil Bluetooth déjà appairé, proposé dans les options. */

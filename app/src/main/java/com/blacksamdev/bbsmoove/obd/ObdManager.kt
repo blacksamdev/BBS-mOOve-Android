@@ -57,6 +57,12 @@ class ObdManager(
     private var tankLoaded = false
     private var smoothedLh: Double? = null
 
+    // Diagnostic : dernière réponse brute des PID qui n'ont pas répondu, et
+    // dernières valeurs lues pour la détection de coupure d'injection.
+    private val lastFail = mutableMapOf<Int, String>()
+    private var dbgFuelStatus: Int? = null
+    private var dbgLoad: Double? = null
+
     /** Démarre, redémarre ou arrête la lecture selon les réglages. */
     fun configure(enabled: Boolean, address: String?) {
         if (!enabled || address.isNullOrBlank()) {
@@ -198,6 +204,13 @@ class ObdManager(
         var stft: Double? = null
         var ltft: Double? = null
         var coolant: Int? = null
+        var missed = 0
+        // Nouvelle session : on repart d'un instantané vide plutôt que de
+        // garder la dernière valeur de la session précédente.
+        smoothedLh = null
+        lastFail.clear()
+        dbgFuelStatus = null
+        dbgLoad = null
 
         while (coroutineContext.isActive) {
             val speed = read(elm, 0x0D)?.let { it[0].toDouble() }
@@ -223,7 +236,10 @@ class ObdManager(
                 coolant = read(elm, 0x05)?.let { it[0] - 40 }
             }
 
-            val rawLh: Double? = if (isFuelCut(elm, supported, rpm)) {
+            var dbgMap: Double? = null
+            var dbgIat: Double? = null
+            val fuelCut = isFuelCut(elm, supported, rpm)
+            val rawLh: Double? = if (fuelCut) {
                 0.0
             } else {
                 when (method) {
@@ -235,6 +251,8 @@ class ObdManager(
                     FuelMethod.MAP -> {
                         val map = read(elm, 0x0B)?.let { it[0].toDouble() }
                         val iat = if (0x0F in supported) read(elm, 0x0F)?.let { it[0] - 40.0 } else null
+                        dbgMap = map
+                        dbgIat = iat
                         if (map != null && rpm != null) {
                             val airGs = FuelMath.airFromMap(
                                 mapKpa = map,
@@ -262,6 +280,11 @@ class ObdManager(
                 // Lissage léger : l'instantané brut saute trop pour être lu en roulant.
                 val prev = smoothedLh
                 smoothedLh = if (prev == null) lh else prev + 0.35 * (lh - prev)
+                missed = 0
+            } else {
+                // Plus de calcul possible : on n'affiche pas une valeur figée.
+                missed++
+                if (missed >= 3) smoothedLh = null
             }
             if (speed != null) tripKm += speed * dtSec / 3600.0
 
@@ -275,6 +298,7 @@ class ObdManager(
                 tankLiters = tankLiters,
                 rpm = rpm?.toInt(),
                 coolantC = coolant,
+                debug = buildDebug(speed, rpm, dbgMap, dbgIat, stft, ltft, fuelCut, rawLh),
             )
 
             if (now - lastSaveMs > 30_000) {
@@ -293,11 +317,14 @@ class ObdManager(
      */
     private fun isFuelCut(elm: Elm327Client, supported: Set<Int>, rpm: Double?): Boolean {
         if (0x03 !in supported || 0x04 !in supported) return false
+        // Lus à chaque cycle (pas seulement à haut régime) pour le diagnostic.
+        val fuelStatus = read(elm, 0x03)?.let { it[0] }
+        val load = read(elm, 0x04)?.let { it[0] * 100.0 / 255.0 }
+        dbgFuelStatus = fuelStatus
+        dbgLoad = load
         if (rpm == null || rpm < 1_100) return false
-        val fuelStatus = read(elm, 0x03)?.let { it[0] } ?: return false
-        if ((fuelStatus and 0x04) == 0) return false
-        val load = read(elm, 0x04)?.let { it[0] * 100.0 / 255.0 } ?: return false
-        return load < 20.0
+        if (fuelStatus == null || (fuelStatus and 0x04) == 0) return false
+        return load != null && load < 20.0
     }
 
     /** Lit un PID en mode 01. Renvoie null si la voiture ne répond pas. */
@@ -305,10 +332,49 @@ class ObdManager(
         val response = try {
             elm.send("01" + "%02X".format(pid))
         } catch (e: ElmTimeoutException) {
+            lastFail[pid] = "délai"
             return null
         }
-        if (Elm327Client.isNoAnswer(response)) return null
-        return Elm327Client.pidBytes(response, pid)
+        val bytes = if (Elm327Client.isNoAnswer(response)) null else Elm327Client.pidBytes(response, pid)
+        if (bytes == null) {
+            lastFail[pid] = response.replace('\n', ' ').ifBlank { "vide" }.take(24)
+        } else {
+            lastFail.remove(pid)
+        }
+        return bytes
+    }
+
+    /** Ligne de diagnostic affichée sous l'état dans les options. */
+    private fun buildDebug(
+        speed: Double?,
+        rpm: Double?,
+        map: Double?,
+        iat: Double?,
+        stft: Double?,
+        ltft: Double?,
+        fuelCut: Boolean,
+        rawLh: Double?,
+    ): String {
+        fun n(v: Double?, unit: String) = v?.let { "${it.toInt()} $unit" } ?: "?"
+        fun pct(v: Double?) = v?.let { "%+.0f".format(it) } ?: "?"
+        val parts = mutableListOf(
+            "régime ${n(rpm, "tr/min")}",
+            "vitesse ${n(speed, "km/h")}",
+            "MAP ${n(map, "kPa")}",
+            "air ${n(iat, "°C")}",
+            "trims ${pct(stft)}/${pct(ltft)} %",
+            "état ${dbgFuelStatus?.let { "0x%02X".format(it) } ?: "?"}",
+            "charge ${n(dbgLoad, "%")}",
+            "brut ${rawLh?.let { "%.2f".format(it).replace('.', ',') + " L/h" } ?: "?"}",
+        )
+        if (fuelCut) parts.add("coupure injection")
+        var text = parts.joinToString(" · ")
+        if (lastFail.isNotEmpty()) {
+            text += "\nsans réponse : " + lastFail.entries.joinToString(" · ") { (pid, r) ->
+                "%02X=%s".format(pid, r)
+            }
+        }
+        return text
     }
 
     /**

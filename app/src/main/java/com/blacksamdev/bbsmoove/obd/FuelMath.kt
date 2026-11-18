@@ -39,8 +39,12 @@ object FuelMath {
      * Un trim de +5 % signifie que le calculateur injecte 5 % de plus que sa
      * cartographie de base : on suit ce qu'il injecte réellement.
      */
-    fun trimFactor(shortTermPct: Double?, longTermPct: Double?): Double =
-        1.0 + ((shortTermPct ?: 0.0) + (longTermPct ?: 0.0)) / 100.0
+    fun trimFactor(shortTermPct: Double?, longTermPct: Double?): Double {
+        // Au-delà de ±25 % la valeur est aberrante (mauvaise lecture) : on la borne.
+        val st = (shortTermPct ?: 0.0).coerceIn(-25.0, 25.0)
+        val lt = (longTermPct ?: 0.0).coerceIn(-25.0, 25.0)
+        return 1.0 + (st + lt) / 100.0
+    }
 
     /** Débit carburant (L/h) à partir d'un débit d'air (g/s). */
     fun litersPerHourFromAir(airGramsPerSec: Double, trimFactor: Double): Double =

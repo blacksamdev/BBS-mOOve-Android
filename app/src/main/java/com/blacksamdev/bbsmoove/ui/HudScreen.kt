@@ -321,7 +321,7 @@ fun HudScreen(viewModel: HudViewModel) {
                 onKeepScreenOn = { v -> scope.launch { repo.setKeepScreenOn(v) } },
                 onMirrorMode = { v -> scope.launch { repo.setMirrorMode(v) } },
                 onOverlayContent = { v -> viewModel.setOverlayContent(v) },
-                obdStatusText = obdStatus.label(),
+                obdStatusText = obdStatus.label() + (obdReading?.debug?.let { "\n$it" } ?: ""),
                 obdDevices = obdDevices,
                 obdTankLiters = obdReading?.tankLiters ?: 0.0,
                 onObdEnabled = { enable ->
