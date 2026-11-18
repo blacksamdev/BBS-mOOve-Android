@@ -2,6 +2,7 @@ package com.blacksamdev.bbsmoove.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -24,6 +25,8 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
  *  - Son danger : OFF ; distance de déclenchement danger : 900 m
  *  - Écran toujours allumé : ON
  *  - Mode HUD miroir (projection pare-brise) : OFF
+ *  - Consommation OBD : OFF ; cylindrée 1000 cm³ ; étalonnage 100 %
+ *  - Ligne de stats : automatique (conso si boîtier connecté, sinon vitesse)
  */
 data class Settings(
     val wifiOnlyDownload: Boolean = false,
@@ -41,6 +44,17 @@ data class Settings(
     /** Dernière position X de la bulle (px), -1 = pas encore placée. */
     val overlayX: Int = -1,
     val overlayY: Int = -1,
+    /** Lecture de la consommation via un boîtier OBD-II Bluetooth. */
+    val obdEnabled: Boolean = false,
+    /** Adresse MAC du boîtier choisi parmi les appareils appairés. */
+    val obdDeviceAddress: String? = null,
+    val obdDeviceName: String? = null,
+    /** Cylindrée du moteur, utilisée seulement par l'estimation MAP. */
+    val obdDisplacementCc: Int = 1000,
+    /** Facteur d'étalonnage de la consommation (1.0 = 100 %), ajusté au plein. */
+    val obdCalibration: Double = 1.0,
+    /** Ligne de stats du HUD : 0 = vitesse, 1 = consommation, 2 = auto. */
+    val statsMode: Int = 2,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -59,6 +73,15 @@ class SettingsRepository(private val context: Context) {
         val OVERLAY_CONTENT = intPreferencesKey("overlay_content")
         val OVERLAY_X = intPreferencesKey("overlay_x")
         val OVERLAY_Y = intPreferencesKey("overlay_y")
+        val OBD_ENABLED = booleanPreferencesKey("obd_enabled")
+        val OBD_ADDRESS = stringPreferencesKey("obd_device_address")
+        val OBD_NAME = stringPreferencesKey("obd_device_name")
+        val OBD_DISPLACEMENT = intPreferencesKey("obd_displacement_cc")
+        val OBD_CALIBRATION = doublePreferencesKey("obd_calibration")
+        val STATS_MODE = intPreferencesKey("stats_mode")
+        // Carburant compté depuis le dernier plein (pas exposé dans Settings :
+        // il change toutes les 30 s et ne doit pas faire redessiner l'écran).
+        val OBD_TANK_LITERS = doublePreferencesKey("obd_tank_liters")
         // Métadonnées de mise à jour des cartes (pas exposées dans Settings)
         val DATA_VERSION = stringPreferencesKey("data_version")
         val LAST_UPDATE_CHECK_MS = longPreferencesKey("last_update_check_ms")
@@ -84,6 +107,12 @@ class SettingsRepository(private val context: Context) {
             overlayContent = p[Keys.OVERLAY_CONTENT] ?: 1,
             overlayX = p[Keys.OVERLAY_X] ?: -1,
             overlayY = p[Keys.OVERLAY_Y] ?: -1,
+            obdEnabled = p[Keys.OBD_ENABLED] ?: false,
+            obdDeviceAddress = p[Keys.OBD_ADDRESS],
+            obdDeviceName = p[Keys.OBD_NAME],
+            obdDisplacementCc = p[Keys.OBD_DISPLACEMENT] ?: 1000,
+            obdCalibration = p[Keys.OBD_CALIBRATION] ?: 1.0,
+            statsMode = p[Keys.STATS_MODE] ?: 2,
         )
     }
 
@@ -134,6 +163,31 @@ class SettingsRepository(private val context: Context) {
     /** Mémorise la position de la bulle après un déplacement. */
     suspend fun setOverlayPosition(x: Int, y: Int) =
         context.dataStore.edit { it[Keys.OVERLAY_X] = x; it[Keys.OVERLAY_Y] = y }
+
+    // --- Consommation (OBD) ---
+
+    suspend fun setObdEnabled(value: Boolean) =
+        context.dataStore.edit { it[Keys.OBD_ENABLED] = value }
+
+    suspend fun setObdDevice(address: String, name: String) =
+        context.dataStore.edit { it[Keys.OBD_ADDRESS] = address; it[Keys.OBD_NAME] = name }
+
+    /** Cylindrée bornée à [500, 5000] cm³. */
+    suspend fun setObdDisplacement(value: Int) =
+        context.dataStore.edit { it[Keys.OBD_DISPLACEMENT] = value.coerceIn(500, 5000) }
+
+    /** Facteur d'étalonnage borné à [0,5 ; 2,0]. */
+    suspend fun setObdCalibration(value: Double) =
+        context.dataStore.edit { it[Keys.OBD_CALIBRATION] = value.coerceIn(0.5, 2.0) }
+
+    suspend fun setStatsMode(value: Int) =
+        context.dataStore.edit { it[Keys.STATS_MODE] = value.coerceIn(0, 2) }
+
+    suspend fun tankLiters(): Double =
+        context.dataStore.data.first()[Keys.OBD_TANK_LITERS] ?: 0.0
+
+    suspend fun setTankLiters(value: Double) =
+        context.dataStore.edit { it[Keys.OBD_TANK_LITERS] = value.coerceAtLeast(0.0) }
 
     // --- Métadonnées de mise à jour des cartes ---
 

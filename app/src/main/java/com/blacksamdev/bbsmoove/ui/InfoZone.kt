@@ -24,6 +24,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import com.blacksamdev.bbsmoove.model.NowPlaying
+import com.blacksamdev.bbsmoove.obd.ObdReading
 import com.blacksamdev.bbsmoove.ui.theme.Bone
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
 import com.blacksamdev.bbsmoove.ui.theme.BgPanel2
@@ -45,6 +46,8 @@ fun InfoZone(
     maxSpeedKmh: Int,
     tripDurationSec: Int,
     isDucking: Boolean,
+    showConso: Boolean = false,
+    conso: ObdReading? = null,
     onPlayPause: () -> Unit = {},
     onNext: () -> Unit = {},
     onPrevious: () -> Unit = {},
@@ -80,7 +83,11 @@ fun InfoZone(
             GpsPanel(accuracyM)
         }
 
-        StatsRow(avgSpeedKmh, maxSpeedKmh, tripDurationSec)
+        if (showConso) {
+            ConsoRow(conso)
+        } else {
+            StatsRow(avgSpeedKmh, maxSpeedKmh, tripDurationSec)
+        }
     }
 }
 
@@ -246,6 +253,33 @@ private fun StatsRow(avgSpeedKmh: Int, maxSpeedKmh: Int, tripDurationSec: Int) {
         StatItem("DURÉE", duration)
     }
 }
+
+/**
+ * Ligne de consommation (boîtier OBD) : instantanée, moyenne du trajet,
+ * litres consommés sur le trajet. Sous 5 km/h l'instantané passe en L/h,
+ * les L/100 km n'ayant plus de sens à l'arrêt. « — » tant que rien n'est lu.
+ */
+@Composable
+private fun ConsoRow(conso: ObdReading?) {
+    val instant = when {
+        conso?.instantL100 != null -> "${fmt1(conso.instantL100)} L/100"
+        conso?.instantLh != null -> "${fmt1(conso.instantLh)} L/h"
+        else -> "—"
+    }
+    val average = conso?.avgL100?.let { "${fmt1(it)} L/100" } ?: "—"
+    val trip = conso?.let { "${"%.2f".format(it.tripLiters).replace('.', ',')} L" } ?: "—"
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        StatItem("INSTANT", instant)
+        StatItem("MOY.", average)
+        StatItem("TRAJET", trip)
+    }
+}
+
+private fun fmt1(value: Double): String = "%.1f".format(value).replace('.', ',')
 
 @Composable
 private fun StatItem(label: String, value: String) {

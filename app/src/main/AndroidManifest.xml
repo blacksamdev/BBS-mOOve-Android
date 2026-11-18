@@ -14,6 +14,14 @@
     <!-- Vibration de confirmation de l'appui long sur la bulle. Sans cette
          permission, l'appel levait une SecurityException et l'app plantait. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Boîtier OBD-II Bluetooth (lecture de la consommation). Jusqu'à
+         Android 11, BLUETOOTH suffit (accordé d'office) ; à partir
+         d'Android 12, BLUETOOTH_CONNECT est demandé à l'activation de l'option.
+         Pas de BLUETOOTH_SCAN : on se connecte seulement à un appareil déjà
+         appairé, sans rechercher autour. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
         android:name=".BbsMooveApp"

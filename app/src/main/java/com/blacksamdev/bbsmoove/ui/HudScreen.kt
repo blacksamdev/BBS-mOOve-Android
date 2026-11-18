@@ -26,9 +26,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.blacksamdev.bbsmoove.data.RegionDownloadManager
+import com.blacksamdev.bbsmoove.obd.ObdStatus
+import com.blacksamdev.bbsmoove.obd.label
 import com.blacksamdev.bbsmoove.ui.theme.BgDeep
 import com.blacksamdev.bbsmoove.ui.theme.BoneDim
 import com.blacksamdev.bbsmoove.ui.theme.Gold
@@ -54,6 +62,16 @@ fun HudScreen(viewModel: HudViewModel) {
     val scope = rememberCoroutineScope()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isDucking = uiState.dangerInfo?.shouldAlert == true && uiState.nowPlaying != null
+
+    // Consommation (boîtier OBD) : la ligne du bas affiche la conso selon
+    // le réglage — toujours, jamais, ou seulement quand le boîtier lit.
+    val obdStatus by viewModel.obdStatus.collectAsState()
+    val obdReading by viewModel.obdReading.collectAsState()
+    val showConso = settings.obdEnabled && when (settings.statsMode) {
+        0 -> false
+        1 -> true
+        else -> obdStatus is ObdStatus.Running
+    }
 
     // Écran toujours allumé (option, on par défaut) : indispensable pour un
     // HUD -- sans ça le téléphone se met en veille en pleine conduite.
@@ -101,6 +119,8 @@ fun HudScreen(viewModel: HudViewModel) {
                             maxSpeedKmh = uiState.maxSpeedKmh,
                             tripDurationSec = uiState.tripDurationSec,
                             isDucking = isDucking,
+                            showConso = showConso,
+                            conso = obdReading,
                             onPlayPause = { viewModel.mediaPlayPause() },
                             onNext = { viewModel.mediaNext() },
                             onPrevious = { viewModel.mediaPrevious() },
@@ -124,6 +144,8 @@ fun HudScreen(viewModel: HudViewModel) {
                             maxSpeedKmh = uiState.maxSpeedKmh,
                             tripDurationSec = uiState.tripDurationSec,
                             isDucking = isDucking,
+                            showConso = showConso,
+                            conso = obdReading,
                             onPlayPause = { viewModel.mediaPlayPause() },
                             onNext = { viewModel.mediaNext() },
                             onPrevious = { viewModel.mediaPrevious() },
@@ -257,6 +279,25 @@ fun HudScreen(viewModel: HudViewModel) {
         if (showSettings) {
             val repo = viewModel.settingsRepository()
             val ctxOsm = LocalContext.current
+
+            // Liste des appareils appairés : relue quand on ouvre le panneau,
+            // quand on active l'OBD, et après l'accord de la permission.
+            var btPermissionTick by remember { mutableStateOf(0) }
+            val obdDevices = remember(settings.obdEnabled, btPermissionTick) {
+                viewModel.bondedObdDevices()
+            }
+            // Android 12+ : lire les appareils appairés et s'y connecter
+            // demande la permission « Appareils à proximité ». Avant 12,
+            // aucune demande n'est nécessaire.
+            val btPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                if (granted) {
+                    btPermissionTick++
+                    scope.launch { repo.setObdEnabled(true) }
+                }
+            }
+
             SettingsPanel(
                 settings = settings,
                 currentLimitKmh = uiState.limitKmh,
@@ -280,6 +321,29 @@ fun HudScreen(viewModel: HudViewModel) {
                 onKeepScreenOn = { v -> scope.launch { repo.setKeepScreenOn(v) } },
                 onMirrorMode = { v -> scope.launch { repo.setMirrorMode(v) } },
                 onOverlayContent = { v -> viewModel.setOverlayContent(v) },
+                obdStatusText = obdStatus.label(),
+                obdDevices = obdDevices,
+                obdTankLiters = obdReading?.tankLiters ?: 0.0,
+                onObdEnabled = { enable ->
+                    val needsPermission = enable &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                        ContextCompat.checkSelfPermission(
+                            ctxOsm, Manifest.permission.BLUETOOTH_CONNECT,
+                        ) != PackageManager.PERMISSION_GRANTED
+                    if (needsPermission) {
+                        btPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                    } else {
+                        scope.launch { repo.setObdEnabled(enable) }
+                    }
+                },
+                onObdDevice = { device ->
+                    scope.launch { repo.setObdDevice(device.address, device.name) }
+                },
+                onObdDisplacement = { v -> scope.launch { repo.setObdDisplacement(v) } },
+                onObdCalibrate = { liters, onResult -> viewModel.calibrateObd(liters, onResult) },
+                onObdResetTank = { viewModel.resetObdTank() },
+                onObdResetCalibration = { viewModel.resetObdCalibration() },
+                onStatsMode = { v -> scope.launch { repo.setStatsMode(v) } },
                 onClose = { showSettings = false },
             )
         }

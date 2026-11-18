@@ -1,6 +1,13 @@
 package com.blacksamdev.bbsmoove.ui
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.blacksamdev.bbsmoove.data.DangerZoneRepository
@@ -15,6 +22,9 @@ import com.blacksamdev.bbsmoove.model.GpsFix
 import com.blacksamdev.bbsmoove.model.NowPlaying
 import com.blacksamdev.bbsmoove.model.RoadInfo
 import com.blacksamdev.bbsmoove.model.SpeedState
+import com.blacksamdev.bbsmoove.obd.BtDeviceInfo
+import com.blacksamdev.bbsmoove.obd.ObdManager
+import com.blacksamdev.bbsmoove.obd.ObdParams
 import com.blacksamdev.bbsmoove.service.AlertSoundPlayer
 import com.blacksamdev.bbsmoove.service.AudioDuckingManager
 import com.blacksamdev.bbsmoove.service.HudSnapshot
@@ -26,6 +36,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -74,6 +86,61 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Accès au repository pour le panneau d'options. */
     fun settingsRepository(): SettingsRepository = settingsRepo
+
+    // --- Consommation via boîtier OBD-II ---
+
+    // Cylindrée et étalonnage sont relus à chaque cycle de lecture : un
+    // changement dans les options s'applique immédiatement.
+    private val obd = ObdManager(application, settingsRepo) {
+        ObdParams(
+            displacementCc = settings.value.obdDisplacementCc,
+            calibration = settings.value.obdCalibration,
+        )
+    }
+
+    /** État de la liaison avec le boîtier (pour les options et le HUD). */
+    val obdStatus = obd.status
+
+    /** Dernières valeurs de consommation, null tant que rien n'est lu. */
+    val obdReading = obd.reading
+
+    /**
+     * Appareils Bluetooth déjà appairés, proposés comme boîtier OBD.
+     * Vide si la permission Bluetooth manque (Android 12+) ou sans Bluetooth.
+     */
+    @SuppressLint("MissingPermission")
+    fun bondedObdDevices(): List<BtDeviceInfo> {
+        val app = getApplication<Application>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(app, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return emptyList()
+        }
+        val manager = app.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter = manager.adapter ?: return emptyList()
+        return try {
+            adapter.bondedDevices.orEmpty()
+                .map { BtDeviceInfo(name = it.name ?: it.address, address = it.address) }
+                .sortedBy { it.name.lowercase() }
+        } catch (e: SecurityException) {
+            emptyList()
+        }
+    }
+
+    /** Étalonnage au plein : [onResult] reçoit le message à afficher. */
+    fun calibrateObd(realLiters: Double, onResult: (String) -> Unit) {
+        viewModelScope.launch { onResult(obd.calibrateWithFill(realLiters)) }
+    }
+
+    /** Plein fait sans étalonner : le compteur du réservoir repart de zéro. */
+    fun resetObdTank() {
+        viewModelScope.launch { obd.resetTank() }
+    }
+
+    fun resetObdCalibration() {
+        viewModelScope.launch { settingsRepo.setObdCalibration(1.0) }
+    }
 
     /** État du téléchargement de région, observé par l'UI (bouton + progression). */
     val downloadState = regionDownloader.state
@@ -304,6 +371,14 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     init {
         mediaMonitor.start()
 
+        // Le boîtier OBD suit les réglages : activé + boîtier choisi = lecture.
+        viewModelScope.launch {
+            settings
+                .map { it.obdEnabled to it.obdDeviceAddress }
+                .distinctUntilChanged()
+                .collect { (enabled, address) -> obd.configure(enabled, address) }
+        }
+
         // Si les bases ont déjà été téléchargées lors d'une session
         // précédente, on recharge les lookups dessus et on masque le bouton.
         // On désigne aussi la région active pour RoadDb (multi-région).
@@ -443,6 +518,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        obd.release()
         mediaMonitor.stop()
         audioDucking.stopDucking()
         soundPlayer.release()
